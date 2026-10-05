@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<!-- "Open With > Navo" for audio files: they go to Files and get transcribed. -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Audio</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.audio</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleDisplayName</key>
+	<string>Navo</string>
+	<key>CFBundleExecutable</key>
+	<string>Navo</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.ehab-kahwati.navo</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Navo</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<!-- navo://import: the Share extension left audio in the inbox. -->
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.ehab-kahwati.navo</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>navo</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.11.1</string>
+	<key>CFBundleVersion</key>
+	<string>19</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Open source. Speech runs locally on this Mac.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Navo listens only while you hold the dictation key, the Flow Bar is recording, or you record a meeting, and turns your speech into text on this Mac.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Navo records the sound your Mac plays, such as the other people in a Google Meet call, only while you record a meeting in the Record tab, and turns it into text on this Mac.</string>
+</dict>
+</plist>

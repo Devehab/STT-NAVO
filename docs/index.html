@@ -1,0 +1,2874 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Navo, voice typing for Mac in Arabic and English</title>
+<meta name="description" content="Navo is an open source voice keyboard for macOS: dictation in Arabic and English, meeting transcripts and summaries, all running on your Mac.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Navo, voice typing for Mac in Arabic and English">
+<meta property="og:description" content="Navo is an open source voice keyboard for macOS: dictation in Arabic and English, meeting transcripts and summaries, all running on your Mac.">
+<meta property="og:image" content="https://devehab.github.io/STT-NAVO/icon.png">
+<meta property="og:url" content="https://devehab.github.io/STT-NAVO/">
+<link rel="icon" type="image/png" href="icon.png">
+<style>
+/* Layout: one centered column. The hero pairs the pitch with a live Flow Bar demo, feature rows
+   alternate text with a screenshot on a tinted desk, and the reference blocks (models,
+   requirements, install, shortcuts) are quiet tables and lists. Everything uses logical
+   properties, so Arabic mirrors without a second stylesheet. */
+:root {
+  --bg: #f5f6fb;
+  --surface: #ffffff;
+  --raised: #eceffa;
+  --ink: #131933;
+  --muted: #565f82;
+  --line: #dce0ef;
+  --violet: #7a76ff;
+  --sky: #45a8ff;
+  --accent: #3f51e0;
+  --accent-ink: #ffffff;
+  --pill: #141a36;
+  --pill-ink: #f3f5ff;
+  --ok: #1c8257;
+  --shadow: 0 1px 2px rgba(19, 25, 51, 0.06), 0 12px 32px -12px rgba(19, 25, 51, 0.18);
+
+  --font-display: "Readex Pro", "SF Pro Display", "SF Arabic", "Geeza Pro", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans Arabic", -apple-system, "SF Pro Text", "SF Arabic", "Geeza Pro", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --leading: 1.65;
+  --page: 1120px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0f20;
+    --surface: #141831;
+    --raised: #1a1f40;
+    --ink: #eceefb;
+    --muted: #a3aacb;
+    --line: #272d52;
+    --accent: #909cff;
+    --accent-ink: #0c0f20;
+    --pill: #252b57;
+    --pill-ink: #f3f5ff;
+    --ok: #5fd39f;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 16px 36px -14px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c0f20;
+  --surface: #141831;
+  --raised: #1a1f40;
+  --ink: #eceefb;
+  --muted: #a3aacb;
+  --line: #272d52;
+  --accent: #909cff;
+  --accent-ink: #0c0f20;
+  --pill: #252b57;
+  --pill-ink: #f3f5ff;
+  --ok: #5fd39f;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 16px 36px -14px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+:root[lang="ar"] {
+  --leading: 1.95;
+}
+
+@font-face {
+  font-family: "Readex Pro";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 160 700;
+  src: url(fonts/readex-pro-arabic.woff2) format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+  font-family: "Readex Pro";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 160 700;
+  src: url(fonts/readex-pro-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(fonts/plex-sans-arabic-400.woff2) format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(fonts/plex-sans-arabic-500.woff2) format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(fonts/plex-sans-arabic-600.woff2) format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(fonts/plex-sans-latin-400.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(fonts/plex-sans-latin-500.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Sans Arabic";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(fonts/plex-sans-latin-600.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(fonts/plex-mono-400.woff2) format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(fonts/plex-mono-500.woff2) format("woff2");
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 84px;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: var(--leading);
+  -webkit-font-smoothing: antialiased;
+}
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0;
+  text-wrap: balance;
+}
+:root[lang="ar"] h1,
+:root[lang="ar"] h2,
+:root[lang="ar"] h3 {
+  line-height: 1.45;
+}
+p {
+  margin: 0;
+}
+[dir="ltr"] {
+  unicode-bidi: isolate;
+}
+.wrap {
+  max-width: var(--page);
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 32px);
+}
+
+/* Keys and code keep their own direction inside Arabic text. */
+kbd {
+  display: inline-block;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  font-weight: 500;
+  line-height: 1.5;
+  padding: 1px 8px;
+  border-radius: 7px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-bottom-width: 3px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+code,
+pre {
+  font-family: var(--font-mono);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+code {
+  font-size: 0.88em;
+  background: var(--raised);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+/* Header */
+.top {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 20;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.top .wrap {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 64px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.2rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+.brand img {
+  width: 34px;
+  height: 34px;
+}
+.nav {
+  display: flex;
+  gap: 22px;
+  margin-inline-start: auto;
+}
+.nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.93rem;
+  font-weight: 500;
+}
+.nav a:hover {
+  color: var(--ink);
+}
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lang {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.lang:hover {
+  background: var(--raised);
+}
+@media (max-width: 860px) {
+  .nav {
+    display: none;
+  }
+  .top-actions {
+    margin-inline-start: auto;
+  }
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.3;
+  text-decoration: none;
+  border-radius: 14px;
+  padding: 14px 24px;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 10px 24px -12px var(--accent);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+}
+.btn-quiet {
+  color: var(--ink);
+  border-color: var(--line);
+  background: var(--surface);
+}
+.btn-quiet:hover {
+  background: var(--raised);
+}
+.btn-small {
+  font-size: 0.9rem;
+  padding: 8px 16px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+.btn svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+/* Hero */
+.hero {
+  padding-block: clamp(40px, 7vw, 88px) clamp(40px, 6vw, 72px);
+}
+.hero .wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+  gap: clamp(28px, 5vw, 64px);
+  align-items: center;
+}
+.hero h1 {
+  font-size: clamp(2.5rem, 6vw, 4.3rem);
+  letter-spacing: -0.02em;
+}
+:root[lang="ar"] .hero h1 {
+  letter-spacing: 0;
+  font-size: clamp(2.3rem, 5.4vw, 3.8rem);
+}
+.hero h1 .sub {
+  display: block;
+  font-size: 0.46em;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.4;
+  color: var(--muted);
+  margin-block-start: 14px;
+}
+.hero-sub {
+  font-size: 1.12rem;
+  color: var(--muted);
+  max-width: 34em;
+  margin-block: 22px 28px;
+}
+.hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.hero-meta {
+  margin-block-start: 18px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+@media (max-width: 900px) {
+  .hero .wrap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The live demo: a key goes down, the Flow Bar listens, and the sentence is pasted into the app.
+   The Flow Bar is drawn the way the app draws it, always dark, in both themes. */
+.stage {
+  --fb-bg: rgba(9, 10, 16, 0.9);
+  --fb-ink: #ffffff;
+  position: relative;
+  border-radius: 28px;
+  padding: clamp(16px, 2.6vw, 26px);
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--violet) 26%, transparent), transparent 60%),
+    radial-gradient(110% 90% at 100% 100%, color-mix(in srgb, var(--sky) 28%, transparent), transparent 62%),
+    var(--raised);
+  border: 1px solid var(--line);
+}
+.win {
+  position: relative;
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  text-align: left;
+}
+.win-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.win-bar i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.win-bar b {
+  font-weight: 500;
+  margin-left: 8px;
+}
+.win-meta {
+  padding: 10px 18px 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.win-text {
+  min-height: 7.4em;
+  padding: 8px 18px 50px;
+  font-size: 1.04rem;
+  line-height: 1.75;
+  text-align: start;
+}
+.pasted {
+  border-radius: 5px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.pasted.fresh {
+  animation: landed 1.6s ease-out;
+}
+@keyframes landed {
+  0% {
+    background: color-mix(in srgb, var(--sky) 46%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-inline-start: 2px;
+  vertical-align: -0.18em;
+  background: var(--accent);
+  animation: blink 1s steps(1) infinite;
+}
+.toast {
+  position: absolute;
+  inset-block-end: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ok) 13%, var(--surface));
+  color: var(--ok);
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.toast.show {
+  opacity: 1;
+  transform: none;
+}
+.toast kbd {
+  font-size: 0.72rem;
+  border-bottom-width: 2px;
+}
+.dock {
+  display: grid;
+  place-items: center;
+  height: 78px;
+}
+.fb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 44px;
+  width: 300px;
+  max-width: 100%;
+  border-radius: 999px;
+  background: var(--fb-bg);
+  color: var(--fb-ink);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 22px -8px rgba(5, 8, 30, 0.75);
+  overflow: hidden;
+  transition: width 0.34s cubic-bezier(0.3, 1.35, 0.5, 1), height 0.34s cubic-bezier(0.3, 1.35, 0.5, 1);
+  direction: ltr;
+}
+.fb[data-state="orb"] {
+  width: 38px;
+  height: 38px;
+}
+.fb[data-state="work"] {
+  width: 168px;
+}
+.fb > * {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+.fb[data-state="orb"] .fb-orb,
+.fb[data-state="rec"] .fb-rec,
+.fb[data-state="work"] .fb-work {
+  opacity: 1;
+}
+.fb-orb {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+  background: linear-gradient(135deg, #8c66ff, #33b8ff) content-box;
+  padding: 3.5px;
+}
+.fb-rec {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 300px;
+  padding-inline: 9px;
+}
+.fb-x,
+.fb-stop {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+.fb-x {
+  background: rgba(255, 255, 255, 0.14);
+}
+.fb-x::before,
+.fb-x::after {
+  content: "";
+  grid-area: 1 / 1;
+  width: 10px;
+  height: 1.8px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.85);
+  transform: rotate(45deg);
+}
+.fb-x::after {
+  transform: rotate(-45deg);
+}
+.fb-stop {
+  background: #ffffff;
+}
+.fb-stop::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: #0a0b12;
+}
+.fb-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff453a;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.fb-wave {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 28px;
+  overflow: hidden;
+}
+.fb-wave i {
+  flex: none;
+  width: 2.5px;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.9);
+  transition: height 0.08s ease-out;
+}
+.fb-time {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
+}
+.fb-chip {
+  flex: none;
+  min-width: 30px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-family: var(--font-display);
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.5;
+}
+.fb-work {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.spin {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #ffffff;
+  animation: turn 0.8s linear infinite;
+}
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.hold {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+.keycap {
+  flex: none;
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: end;
+  width: 86px;
+  height: 66px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-bottom-width: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.08s ease, border-bottom-width 0.08s ease, box-shadow 0.15s ease;
+}
+.keycap svg {
+  width: 20px;
+  height: 20px;
+}
+.keycap.down {
+  transform: translateY(4px);
+  border-bottom-width: 1px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sky) 55%, transparent), 0 0 26px -2px var(--violet);
+}
+.hold p {
+  font-size: 0.86rem;
+  color: var(--muted);
+  max-width: 17em;
+  text-align: start;
+}
+.phases {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.phases li {
+  padding-block-start: 8px;
+  border-top: 3px solid var(--line);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: var(--muted);
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+.phases li.on {
+  color: var(--ink);
+  font-weight: 600;
+  border-image: linear-gradient(90deg, var(--violet), var(--sky)) 1;
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .caret,
+  .fb-dot,
+  .spin,
+  .pasted.fresh,
+  .swap em {
+    animation: none;
+  }
+  .btn,
+  .fb,
+  .keycap {
+    transition: none;
+  }
+}
+
+/* Sections */
+.section {
+  padding-block: clamp(44px, 7vw, 84px);
+}
+.section-head {
+  max-width: 44em;
+  margin-block-end: clamp(24px, 4vw, 44px);
+}
+.section-head h2 {
+  font-size: clamp(1.7rem, 3.4vw, 2.5rem);
+  letter-spacing: -0.01em;
+}
+:root[lang="ar"] .section-head h2 {
+  letter-spacing: 0;
+}
+.section-head p {
+  color: var(--muted);
+  margin-block-start: 12px;
+  font-size: 1.06rem;
+}
+.band {
+  background: var(--surface);
+  border-block: 1px solid var(--line);
+}
+
+/* Icons: one sprite, drawn for this page. */
+.ico {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+.tile {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, var(--violet), var(--sky));
+  color: #ffffff;
+  box-shadow: 0 8px 18px -10px var(--violet);
+}
+
+/* Three moves */
+.moves {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(16px, 3vw, 36px);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: move;
+}
+.moves li {
+  counter-increment: move;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 6px 16px;
+  align-items: center;
+}
+.moves h3 {
+  font-size: 1.3rem;
+}
+.moves h3::before {
+  content: counter(move) ". ";
+  color: var(--accent);
+}
+.moves p {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.98rem;
+}
+@media (max-width: 760px) {
+  .moves {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Feature rows: the words on one side, a small drawing of the app on the other. */
+.features {
+  display: grid;
+  gap: clamp(44px, 7vw, 92px);
+}
+.feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(24px, 5vw, 64px);
+  align-items: center;
+}
+.feature:nth-of-type(even) .feature-text {
+  order: 2;
+}
+.feature-text .tile {
+  margin-block-end: 16px;
+}
+.feature h3 {
+  font-size: clamp(1.4rem, 2.5vw, 1.9rem);
+  margin-block-end: 12px;
+}
+.feature p {
+  color: var(--muted);
+}
+.feature ul {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 9px;
+}
+.feature li {
+  position: relative;
+  padding-inline-start: 24px;
+  color: var(--ink);
+  font-size: 0.97rem;
+}
+.feature li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 2px;
+  top: 0.5em;
+  width: 11px;
+  height: 6px;
+  border-left: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  transform: rotate(-45deg);
+}
+:root[lang="ar"] .feature li::before {
+  top: 0.68em;
+}
+@media (max-width: 860px) {
+  .feature {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .feature:nth-of-type(even) .feature-text {
+    order: 0;
+  }
+}
+
+/* The drawings. App parts are in English and left to right, like the app. */
+.vig {
+  display: grid;
+  gap: 14px;
+  align-content: center;
+  min-height: 300px;
+  border-radius: 24px;
+  padding: clamp(14px, 2.6vw, 28px);
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--violet) 20%, transparent), transparent 60%),
+    radial-gradient(110% 90% at 100% 100%, color-mix(in srgb, var(--sky) 22%, transparent), transparent 62%),
+    var(--raised);
+  border: 1px solid var(--line);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+.vig img {
+  width: 100%;
+  border-radius: 10px;
+}
+.ui {
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  text-align: left;
+  direction: ltr;
+}
+.ui-pad {
+  padding: 12px 16px 16px;
+}
+.ui-dim {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.ui mark {
+  background: color-mix(in srgb, var(--sky) 30%, transparent);
+  color: inherit;
+  border-radius: 4px;
+  padding: 1px 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.chip.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Paste: the clipboard before and after */
+.flow3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.clip {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border: 1px solid var(--line);
+}
+.clip small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.clip b {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+.clip-mid {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.clip-mid small {
+  color: inherit;
+  opacity: 0.8;
+}
+.clip-mid kbd {
+  font-size: 0.7rem;
+}
+.clip .same {
+  color: var(--ok);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+/* Language: the Flow Bar's menu */
+.vig-center {
+  justify-items: center;
+}
+.fbm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px 7px 10px;
+  border-radius: 999px;
+  background: rgba(9, 10, 16, 0.9);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 10px 24px -10px rgba(5, 8, 30, 0.75);
+  direction: ltr;
+}
+.fbm-dots {
+  display: grid;
+  gap: 3px;
+}
+.fbm-dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+}
+.fbm-mic {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8c66ff, #33b8ff);
+}
+.fbm-mic .ico {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.2;
+}
+.fbm-speak {
+  display: grid;
+  line-height: 1.25;
+  margin-right: 14px;
+}
+.fbm-speak b {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.fbm-speak small {
+  font-size: 0.62rem;
+  opacity: 0.6;
+}
+.fbm > .ico {
+  width: 17px;
+  height: 17px;
+  opacity: 0.9;
+}
+.swap {
+  display: grid;
+  min-width: 32px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  outline: 2px solid color-mix(in srgb, var(--sky) 70%, transparent);
+  outline-offset: 2px;
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-align: center;
+}
+.swap em {
+  grid-area: 1 / 1;
+  font-style: normal;
+  animation: swap 4.4s steps(1) infinite;
+}
+.swap em + em {
+  animation-delay: -2.2s;
+}
+@keyframes swap {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .swap em + em {
+    opacity: 0;
+  }
+}
+.vig-keys {
+  display: flex;
+  gap: 6px;
+  direction: ltr;
+}
+.said {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 360px);
+}
+.said p {
+  padding: 9px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: 0.9rem;
+}
+.said p:first-child {
+  line-height: 1.8;
+}
+
+/* Record */
+.rec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff453a;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.rec-head time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  margin-right: auto;
+}
+.pillbtn {
+  padding: 3px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+.pillbtn.solid {
+  background: var(--ink);
+  color: var(--surface);
+  border-color: transparent;
+}
+.rec-src {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px 0;
+}
+.lines {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px 16px;
+}
+.lines p {
+  display: grid;
+  grid-template-columns: 3.2em minmax(0, 1fr);
+  gap: 8px;
+}
+.lines time {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  padding-top: 2px;
+}
+.lines .new span {
+  background: linear-gradient(90deg, var(--ink) 60%, color-mix(in srgb, var(--ink) 25%, transparent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* AI */
+.ai-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.ai-head .ico {
+  color: var(--accent);
+  width: 18px;
+  height: 18px;
+}
+.ai-head b {
+  margin-right: 6px;
+}
+.ai-out {
+  padding: 12px 16px 16px;
+}
+.ai-out h4 {
+  margin: 8px 0 4px;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.ai-out ul {
+  margin: 0;
+  padding-left: 18px;
+  display: block;
+}
+.ai-out li {
+  padding: 0;
+  font-size: 0.84rem;
+  color: var(--ink);
+  list-style: disc;
+}
+.ai-out li::before {
+  content: none;
+}
+
+/* Files */
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 12px 4px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--raised);
+}
+.search .ico {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+.search span:first-of-type {
+  margin-right: auto;
+  font-weight: 500;
+}
+.search .chip {
+  background: var(--surface);
+}
+.frow {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  margin: 6px 8px;
+  padding: 9px 10px;
+  border-radius: 10px;
+}
+.frow.on {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.frow .ico {
+  width: 34px;
+  height: 34px;
+  padding: 7px;
+  border-radius: 9px;
+  background: var(--raised);
+  color: var(--accent);
+}
+.frow b {
+  display: block;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.frow small {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+.frow p {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-block-start: 4px;
+}
+.count {
+  padding: 2px 18px 12px;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+/* Quick paste */
+.qp-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 1.02rem;
+  color: var(--muted);
+}
+.qp-head .ico {
+  color: var(--accent);
+}
+.qp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin: 4px 8px;
+  padding: 7px 10px;
+  border-radius: 9px;
+}
+.qp-row b {
+  display: block;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qp-row small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.qp-row span {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.qp-row.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.qp-row.on small {
+  color: inherit;
+  opacity: 0.8;
+}
+.qp-row.on span {
+  background: color-mix(in srgb, var(--accent-ink) 22%, transparent);
+  color: inherit;
+}
+.qp-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-block-start: 6px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+/* Memory */
+.mem {
+  display: grid;
+  gap: 14px;
+  padding: 18px 16px;
+  direction: inherit;
+  text-align: start;
+}
+.mem-row {
+  display: grid;
+  grid-template-columns: minmax(0, 7.5em) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.mem-row span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.mem-row b {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+}
+.bar {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--raised);
+  overflow: hidden;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  min-width: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--violet), var(--sky));
+}
+.mem-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-block-start: 12px;
+  border-top: 1px solid var(--line);
+}
+.mem-chips small {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+/* The smaller features */
+.more-title {
+  font-size: clamp(1.3rem, 2.4vw, 1.7rem);
+  margin-block: clamp(48px, 8vw, 96px) 22px;
+}
+.more {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  overflow: hidden;
+}
+.more article {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 20px;
+  background: var(--surface);
+}
+.more .ico {
+  color: var(--accent);
+  width: 24px;
+  height: 24px;
+  margin-block-end: 4px;
+}
+.more h4 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+.more p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+:root[lang="ar"] .more p {
+  line-height: 1.8;
+}
+@media (max-width: 980px) {
+  .more {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
+  .more {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.shot {
+  margin: 0;
+  border-radius: 24px;
+  padding: clamp(10px, 2.4vw, 28px);
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--violet) 20%, transparent), transparent 60%),
+    radial-gradient(110% 90% at 100% 100%, color-mix(in srgb, var(--sky) 22%, transparent), transparent 62%),
+    var(--raised);
+  border: 1px solid var(--line);
+}
+.shot img {
+  width: 100%;
+  border-radius: 10px;
+}
+
+/* Privacy */
+.privacy {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  gap: clamp(24px, 5vw, 64px);
+  align-items: start;
+}
+.privacy h2 {
+  font-size: clamp(1.7rem, 3.4vw, 2.5rem);
+}
+.privacy > div > p {
+  color: var(--muted);
+  margin-block-start: 14px;
+  font-size: 1.06rem;
+}
+.proofs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+.proofs li {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  padding-block: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.proofs li:first-child {
+  border-top: 1px solid var(--line);
+}
+.proofs li::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ok);
+  transform: translateY(-1px);
+}
+@media (max-width: 860px) {
+  .privacy {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Tables */
+.table-title {
+  font-size: 1.15rem;
+  margin-block: 28px 12px;
+}
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+th,
+td {
+  text-align: start;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+tr:last-child td {
+  border-bottom: 0;
+}
+th {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--muted);
+  background: var(--raised);
+}
+td strong {
+  font-weight: 600;
+  display: block;
+}
+td small {
+  color: var(--muted);
+  font-size: 0.85em;
+}
+.tag {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.tag-ok {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+.note-line {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-block-start: 14px;
+  max-width: 50em;
+}
+
+/* Requirements */
+.specs {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  border-top: 1px solid var(--line);
+}
+.specs dt,
+.specs dd {
+  margin: 0;
+  padding-block: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.specs dt {
+  font-family: var(--font-display);
+  font-weight: 500;
+  padding-inline-end: clamp(16px, 5vw, 56px);
+}
+.specs dd {
+  color: var(--muted);
+}
+.specs dd b {
+  color: var(--ink);
+  font-weight: 600;
+}
+@media (max-width: 600px) {
+  .specs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .specs dt {
+    border-bottom: 0;
+    padding-block-end: 0;
+  }
+  .specs dd {
+    padding-block-start: 4px;
+  }
+}
+
+/* Install */
+.install {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  gap: clamp(24px, 5vw, 64px);
+  align-items: start;
+}
+.install:not(:has(.shot)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: step;
+  display: grid;
+  gap: 18px;
+  max-width: 46em;
+}
+.steps li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.steps li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--raised);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+.steps b {
+  font-weight: 600;
+}
+.steps span.opt {
+  color: var(--muted);
+  font-size: 0.85em;
+  font-weight: 500;
+}
+@media (max-width: 860px) {
+  .install {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Shortcuts */
+.keys {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  border-top: 1px solid var(--line);
+  max-width: 50em;
+}
+.keys dt,
+.keys dd {
+  margin: 0;
+  padding-block: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.keys dt {
+  padding-inline-end: clamp(16px, 4vw, 44px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.keys dd {
+  color: var(--ink);
+}
+@media (max-width: 600px) {
+  .keys {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .keys dt {
+    border-bottom: 0;
+    padding-block-end: 2px;
+  }
+  .keys dd {
+    padding-block-start: 2px;
+  }
+}
+
+/* Developers */
+.dev {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: clamp(24px, 5vw, 56px);
+  align-items: start;
+}
+.dev p {
+  color: var(--muted);
+}
+.dev p + p {
+  margin-block-start: 14px;
+}
+pre {
+  margin: 0;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: var(--pill);
+  color: var(--pill-ink);
+  font-size: 0.86rem;
+  line-height: 1.7;
+  overflow-x: auto;
+  text-align: left;
+}
+pre + pre {
+  margin-block-start: 12px;
+}
+pre .c {
+  opacity: 0.6;
+}
+@media (max-width: 860px) {
+  .dev {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Download */
+.download {
+  text-align: center;
+  border-radius: 32px;
+  padding: clamp(32px, 6vw, 64px) clamp(18px, 4vw, 48px);
+  background:
+    radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--violet) 30%, transparent), transparent 60%),
+    radial-gradient(90% 120% at 100% 100%, color-mix(in srgb, var(--sky) 32%, transparent), transparent 62%),
+    var(--surface);
+  border: 1px solid var(--line);
+}
+.download img {
+  width: 92px;
+  height: 92px;
+  margin-inline: auto;
+}
+.download h2 {
+  font-size: clamp(1.9rem, 4vw, 2.8rem);
+  margin-block: 10px 10px;
+}
+.download p {
+  color: var(--muted);
+  max-width: 36em;
+  margin-inline: auto;
+}
+.download .btn {
+  margin-block: 26px 16px;
+  font-size: 1.1rem;
+  padding: 16px 30px;
+}
+.download .meta {
+  font-size: 0.9rem;
+}
+.download .first-open {
+  font-size: 0.88rem;
+  margin-block-start: 10px;
+}
+
+/* Footer */
+.foot {
+  padding-block: 32px 44px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.foot .wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  justify-content: space-between;
+}
+.foot p {
+  max-width: 48em;
+}
+.foot nav {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="3.5"/><path d="M7.5 9.5h2.2l3.6 5h3.2M13.5 9.5h3"/></symbol>
+    <symbol id="i-paste" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="16.5" rx="2.5"/><path d="M9 4.5v-1a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1M12 9.5v6M9.3 13l2.7 2.7 2.7-2.7"/></symbol>
+    <symbol id="i-lang" viewBox="0 0 24 24"><path d="M3.5 6.5h9M8 4.5v2c0 3.2-1.8 5.8-4.5 7M5.5 9.5c1 2 3.2 3.6 5.5 4.2M13.5 20l3.5-8.5 3.5 8.5M14.8 17h4.4"/></symbol>
+    <symbol id="i-rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.6" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M10 3.5l1.7 4.8L16.5 10l-4.8 1.7L10 16.5l-1.7-4.8L3.5 10l4.8-1.7zM18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v4h4M9.5 14v2M12 12v6M14.5 13.5v3"/></symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 12.5h8M8 16h5"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 24 24"><path d="M5 12a7 7 0 1 1 2.05 4.95M5 17.5V12.8h4.7"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5zM5 20.5A2.5 2.5 0 0 0 7.5 21H19v-3M9 8h6"/></symbol>
+    <symbol id="i-compare" viewBox="0 0 24 24"><rect x="3.5" y="5" width="7" height="14" rx="1.8"/><rect x="13.5" y="5" width="7" height="14" rx="1.8"/><path d="M6 9.5h2M6 12.5h2M16 9.5h2M16 12.5h2"/></symbol>
+    <symbol id="i-pie" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 12V3.5A8.5 8.5 0 0 1 20.5 12z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-quiet" viewBox="0 0 24 24"><path d="M3.5 12h2M7.5 9v6M11 12h2M15 6v12M18.5 10v4M4 19L20 5"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13M10 11v5M14 11v5"/></symbol>
+    <symbol id="i-term" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M7.5 10l3 2.5-3 2.5M13 15h4"/></symbol>
+    <symbol id="i-option" viewBox="0 0 24 24"><path d="M3.5 7H9l6 10h5.5M14.5 7h6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="icon.png" alt="" width="34" height="34">Navo</a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#features" data-i18n="nav.features">Features</a>
+      <a href="#models" data-i18n="nav.models">Models</a>
+      <a href="#requirements" data-i18n="nav.requirements">Requirements</a>
+      <a href="#install" data-i18n="nav.install">Install</a>
+      <a href="#" data-repo hidden data-i18n="nav.source">Source code</a>
+    </nav>
+    <div class="top-actions">
+      <button class="lang" id="lang-switch" type="button" lang="ar" aria-label="عرض الصفحة بالعربية">العربية</button>
+      <a class="btn btn-primary btn-small" href="#download" data-i18n="nav.download">Download</a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <h1><span data-i18n="hero.h1">Talk instead of typing.</span> <span class="sub" data-i18n="hero.h1b">In Arabic, in English, or in both within one sentence.</span></h1>
+        <p class="hero-sub" data-i18n="hero.sub">Navo is an open source voice keyboard for macOS. Hold one key, speak naturally, release, and Navo pastes clean text into the app you are working in. Speech recognition, summaries and your history all stay on your Mac.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#download" data-download>
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 9 10 13.5 14.5 9M4 17h12"/></svg>
+            <span data-i18n="hero.cta">Download for Mac</span>
+          </a>
+          <a class="btn btn-quiet" href="#install" data-i18n="hero.cta2">How to install</a>
+        </div>
+        <p class="hero-meta" data-i18n="hero.meta">Free and open source (MIT) | macOS 14 or later | Apple Silicon</p>
+      </div>
+
+      <div class="stage" id="demo">
+        <div class="win" dir="ltr" aria-hidden="true">
+          <div class="win-bar"><i></i><i></i><i></i><b id="demo-app">Mail</b></div>
+          <div class="win-meta" id="demo-meta">To: Sara</div>
+          <div class="win-text" dir="auto"><span class="pasted" id="demo-text">Hi Sara, thanks for sending the draft. Could we move the pricing table up, right after the introduction?</span><span class="caret"></span></div>
+          <div class="toast show" id="demo-toast"><svg class="ico" style="width:15px;height:15px;stroke-width:2.6"><use href="#i-check"/></svg><span data-i18n="demo.toast">Pasted for you</span><kbd>⌘V</kbd></div>
+        </div>
+        <div class="dock" aria-hidden="true">
+          <div class="fb" id="demo-fb" data-state="orb">
+            <span class="fb-orb"></span>
+            <span class="fb-rec"><span class="fb-x"></span><span class="fb-dot"></span><span class="fb-wave" id="demo-wave"></span><span class="fb-time" id="demo-time">0:00</span><span class="fb-chip" id="demo-chip">EN</span><span class="fb-stop"></span></span>
+            <span class="fb-work"><span class="spin"></span><span id="demo-work">Transcribing…</span></span>
+          </div>
+        </div>
+        <div class="hold">
+          <button class="keycap" id="demo-key" type="button" aria-label="Hold to see Navo listen" data-i18n-label="demo.key">
+            <svg class="ico" aria-hidden="true"><use href="#i-option"/></svg>
+            <span>option</span>
+          </button>
+          <p data-i18n="demo.hint">Try it: hold this key, or the Option key on your keyboard, then let go.</p>
+        </div>
+        <ol class="phases" id="demo-phases" aria-hidden="true">
+          <li data-phase="hold" data-i18n="ph.hold">You hold the key</li>
+          <li data-phase="listen" data-i18n="ph.listen">Navo listens</li>
+          <li data-phase="write" data-i18n="ph.write">It writes on your Mac</li>
+          <li data-phase="paste" class="on" data-i18n="ph.paste">It pastes for you</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="section band" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="how-title" data-i18n="how.title">Three moves, in any app</h2>
+      </div>
+      <ol class="moves">
+        <li>
+          <span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-key"/></svg></span>
+          <h3 data-i18n="how.1.t">Hold</h3>
+          <p data-i18n="how.1.p">Hold <kbd>Right Option</kbd> wherever you can type. The Flow Bar opens with a live waveform, so you see that Navo hears you.</p>
+        </li>
+        <li>
+          <span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-mic"/></svg></span>
+          <h3 data-i18n="how.2.t">Speak</h3>
+          <p data-i18n="how.2.p">Talk the way you normally do. Arabic dialects, English, and switching between them in the middle of a sentence all work.</p>
+        </li>
+        <li>
+          <span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-paste"/></svg></span>
+          <h3 data-i18n="how.3.t">Let go</h3>
+          <p data-i18n="how.3.p">Navo tidies the text and pastes it where your cursor is. You do not copy, switch windows or press anything. Double tap the key to talk hands free, <kbd>Esc</kbd> cancels.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="features-title" data-i18n="features.title">What Navo does for you</h2>
+        <p data-i18n="features.lead">Dictation is where it starts. Navo also writes down your meetings, turns recordings into text, writes the summary and remembers what you copied. None of it leaves your Mac.</p>
+      </div>
+      <div class="features">
+
+        <article class="feature">
+          <div class="feature-text">
+            <span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-paste"/></svg></span>
+            <h3 data-i18n="f1.t">It pastes the text for you</h3>
+            <p data-i18n="f1.p">Let go of the key and the sentence is already in your email. Navo puts the text on the clipboard, presses <kbd>Command</kbd> <kbd>V</kbd> in the app you are in, then puts back whatever you had copied before. You never switch windows and you never paste.</p>
+            <ul>
+              <li data-i18n="f1.a">Works wherever a text field has focus: Mail, Slack, the browser, your code editor.</li>
+              <li data-i18n="f1.b">First a small model on your Mac fixes the punctuation and drops the filler words. It never translates and never changes your dialect.</li>
+              <li data-i18n="f1.c">No text field in focus? The text waits on the clipboard and Navo tells you. Password fields are never filled.</li>
+              <li data-i18n="f1.d">Every dictation stays on your Mac with its recording: search it, replay it, retry it.</li>
+            </ul>
+          </div>
+          <div class="vig" aria-hidden="true">
+            <div class="ui">
+              <div class="win-bar"><i></i><i></i><i></i><b>Mail</b></div>
+              <div class="ui-pad">
+                <p class="ui-dim">To: Sara</p>
+                <p><mark>Hi Sara, thanks for sending the draft. Could we move the pricing table up?</mark><span class="caret"></span></p>
+              </div>
+            </div>
+            <div class="flow3">
+              <div class="clip"><small data-i18n="v1.before">Your clipboard</small><b dir="ltr">Order 48213</b></div>
+              <div class="clip clip-mid"><small data-i18n="v1.paste">Navo pastes</small><b dir="ltr"><kbd>⌘</kbd> <kbd>V</kbd></b></div>
+              <div class="clip"><small data-i18n="v1.after">Your clipboard, after</small><b dir="ltr">Order 48213</b><span class="same" data-i18n="v1.same">Untouched</span></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-lang"/></svg></span>
+            <h3 data-i18n="f2.t">Arabic and English, one shortcut apart</h3>
+            <p data-i18n="f2.p">Press <kbd>Control</kbd> <kbd>Option</kbd> <kbd>L</kbd> in any app, or click the AR / EN chip on the Flow Bar, even in the middle of a sentence.</p>
+            <ul>
+              <li data-i18n="f2.a">Arabic the way people speak it: dialects, not only Modern Standard.</li>
+              <li data-i18n="f2.b">Say an English term inside an Arabic sentence and it stays in English letters.</li>
+              <li data-i18n="f2.c">In Auto, the model works out the language by itself.</li>
+            </ul>
+          </div>
+          <div class="vig vig-center" aria-hidden="true">
+            <div class="fbm">
+              <span class="fbm-dots"><i></i><i></i><i></i></span>
+              <span class="fbm-mic"><svg class="ico"><use href="#i-mic"/></svg></span>
+              <span class="fbm-speak"><b>Speak</b><small>or hold Right Option</small></span>
+              <span class="swap"><em>AR</em><em>EN</em></span>
+              <svg class="ico"><use href="#i-clock"/></svg>
+              <svg class="ico"><use href="#i-gear"/></svg>
+            </div>
+            <div class="vig-keys"><kbd>Control</kbd><kbd>Option</kbd><kbd>L</kbd></div>
+            <div class="said">
+              <p dir="rtl" lang="ar">يا شباب، الـ build الجديد جاهز على الـ staging، جربوه قبل الـ release.</p>
+              <p dir="ltr" lang="en">Good morning team, the new build is on staging.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-rec"/></svg></span>
+            <h3 data-i18n="f3.t">Your meeting, written down while it happens</h3>
+            <p data-i18n="f3.p">Record a Google Meet, a Zoom call or anything your Mac plays, your microphone, or both. Every minute or so the newest part turns into text, so you can read along while people are still talking.</p>
+            <ul>
+              <li data-i18n="f3.a">The audio is only ever cut inside a pause, so no word is split in two.</li>
+              <li data-i18n="f3.b">Pause and resume. The recording is saved in parts, so a crash loses almost nothing.</li>
+              <li data-i18n="f3.c">The menu bar shows a red dot and the time while you record.</li>
+            </ul>
+          </div>
+          <div class="vig" aria-hidden="true">
+            <div class="ui">
+              <div class="rec-head"><span class="rec-dot"></span><b>Recording</b><time>12:48</time><span class="pillbtn">Pause</span><span class="pillbtn solid">Stop</span></div>
+              <div class="rec-src"><span class="chip">Mac audio</span><span class="chip">Microphone</span><span class="chip">Whisper, English</span></div>
+              <div class="lines">
+                <p><time>11:02</time><span>On the release, we are on track for the fourteenth.</span></p>
+                <p><time>11:58</time><span>The beta group sent forty two replies. Most people like the new search.</span></p>
+                <p class="new"><time>12:41</time><span>Export should be simple, so we can fit it in before the release.</span></p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg></span>
+            <h3 data-i18n="f4.t">The summary is ready before you close the laptop</h3>
+            <p data-i18n="f4.p">One click on AI turns an hour of talk into the main points, the decisions and the action items, with the names and the numbers. It also rewrites any text as a formal email, a friendly email, a text message or a clean draft, in English or Arabic, whatever language you spoke.</p>
+            <ul>
+              <li data-i18n="f4.a">Gemma 4 or Llama 3.1 writes it on your Mac, and you watch the answer appear.</li>
+              <li data-i18n="f4.b">No account, no API key. It works with Wi-Fi off.</li>
+              <li data-i18n="f4.c">Long meetings are read in parts, so an hour of talk fits.</li>
+            </ul>
+          </div>
+          <div class="vig" aria-hidden="true">
+            <div class="ui">
+              <div class="ai-head"><svg class="ico"><use href="#i-spark"/></svg><b>AI</b><span class="chip on">Summary</span><span class="chip">Detailed summary</span><span class="chip">Formal email</span><span class="chip">Text message</span><span class="chip">Clean rewrite</span></div>
+              <div class="ai-out">
+                <p class="ui-dim">Gemma 4 E4B, on this Mac</p>
+                <h4>Decisions</h4>
+                <ul><li>The release stays on the fourteenth.</li><li>Export to plain text ships this week.</li></ul>
+                <h4>Action items</h4>
+                <ul><li>Omar: build the export, two days.</li><li>Lina: test the new onboarding with five users on Tuesday.</li></ul>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg></span>
+            <h3 data-i18n="f5.t">Any recording becomes text you can search</h3>
+            <p data-i18n="f5.p">Drop in Voice Memos, WhatsApp voice notes, MP3, M4A, WAV or FLAC. Navo writes them out piece by piece, with times if you want them, ready to copy or export.</p>
+            <ul>
+              <li data-i18n="f5.a">Search looks in the titles and inside the text. Arabic matches without diacritics or hamza forms.</li>
+              <li data-i18n="f5.b">Filter by date: today, yesterday, the last 7 or 30 days, or one day from the calendar.</li>
+              <li data-i18n="f5.c">Send audio in with Share in Voice Memos, a paste, a drop, or Open With in Finder.</li>
+            </ul>
+          </div>
+          <div class="vig" aria-hidden="true">
+            <div class="ui">
+              <div class="search"><svg class="ico"><use href="#i-search"/></svg><span>coffee</span><span class="chip">Last 7 days</span></div>
+              <div class="frow on"><svg class="ico"><use href="#i-file"/></svg><div><b>Podcast clip, the history of coffee</b><small>2:16, Whisper, 3 parts</small><p><mark>Coffee</mark> was first brewed as a drink in Yemen in the fifteenth century... <mark>Coffee</mark> houses soon became places to talk, play chess and hear the news, long before newspapers were common.</p></div></div>
+              <p class="count">1 of 5 recordings</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-clip"/></svg></span>
+            <h3 data-i18n="f6.t">Everything you copied, one shortcut away</h3>
+            <p data-i18n="f6.p">Press <kbd>Control</kbd> <kbd>Option</kbd> <kbd>V</kbd> in any app. A small panel opens over your work, like Spotlight, with your last ten copies. Type to search everything Navo kept, press Return, and it is pasted right where you were.</p>
+            <ul>
+              <li data-i18n="f6.a">Copied something on your iPhone? With Universal Clipboard on, it lands here too.</li>
+              <li data-i18n="f6.b">Star what you want to keep forever. The rest leaves after the time you choose, from 1 day to 2 months.</li>
+              <li data-i18n="f6.c">Copies from password managers are never kept.</li>
+            </ul>
+          </div>
+          <div class="vig" aria-hidden="true">
+            <div class="ui">
+              <div class="qp-head"><svg class="ico"><use href="#i-clip"/></svg>Search what you copied</div>
+              <div class="qp-row on"><div><b>https://github.com/ml-explore/mlx</b><small>Safari, 3 minutes ago</small></div><span>⌘1</span></div>
+              <div class="qp-row"><div><b>Flight NV 204, gate 12, boarding at 18:45</b><small>9 minutes ago</small></div><span>⌘2</span></div>
+              <div class="qp-row"><div><b dir="rtl" lang="ar">شارع النخيل 24، الطابق الثاني، بجانب المكتبة العامة</b><small>WhatsApp, 26 minutes ago</small></div><span>⌘3</span></div>
+              <div class="qp-row"><div><b>Order number 48213, arriving on Tuesday</b><small>Mail, 41 minutes ago</small></div><span>⌘4</span></div>
+              <div class="qp-foot"><span>↩ Paste</span><span>⌘↩ Copy only</span><span>⌘1 to ⌘0 Paste by number</span><span>esc Close</span></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-moon"/></svg></span>
+            <h3 data-i18n="f7.t">Fast when you talk, gone when you stop</h3>
+            <p data-i18n="f7.p">The models run on your Mac's GPU through MLX, Apple's framework for Apple Silicon. Navo wakes the engine the moment you press the key, so the model loads while you are still speaking. When you are done, it gives the memory back.</p>
+            <ul>
+              <li data-i18n="f7.a">You choose the idle time: 2, 5, 10, 30 or 60 minutes.</li>
+              <li data-i18n="f7.b">Asleep, the engine takes a few dozen MB instead of several GB.</li>
+              <li data-i18n="f7.c">A speech model and a language model are never in memory together, and a language model never takes more than 6 GB.</li>
+            </ul>
+          </div>
+          <div class="vig" aria-hidden="true">
+            <div class="ui mem">
+              <div class="mem-row"><span data-i18n="v7.talk">While you talk</span><div class="bar"><i style="width:82%"></i></div><b dir="ltr">1.6 to 4.7 GB</b></div>
+              <div class="mem-row"><span data-i18n="v7.sleep">Asleep</span><div class="bar"><i style="width:1%"></i></div><b data-i18n="v7.mb">a few dozen MB</b></div>
+              <div class="mem-chips"><small data-i18n="v7.idle">Free memory when idle, after</small><span class="chip" data-i18n="v7.2">2 min</span><span class="chip" data-i18n="v7.5">5 min</span><span class="chip on" data-i18n="v7.10">10 min</span><span class="chip" data-i18n="v7.30">30 min</span><span class="chip" data-i18n="v7.60">1 hour</span></div>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <h3 class="more-title" data-i18n="more.title">Small things that add up</h3>
+      <div class="more">
+        <article><svg class="ico" aria-hidden="true"><use href="#i-retry"/></svg><h4 data-i18n="g1.t">No dictation is ever lost</h4><p data-i18n="g1.p">If transcription fails, the recording stays in your history with a Retry button.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg><h4 data-i18n="g2.t">Your own dictionary</h4><p data-i18n="g2.p">Teach it names and terms, and set exact replacements for what it should write.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-compare"/></svg><h4 data-i18n="g3.t">Two engines, side by side</h4><p data-i18n="g3.p">Run one recording through two speech models and compare what each one wrote.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-pie"/></svg><h4 data-i18n="g4.t">Progress in the menu bar</h4><p data-i18n="g4.p">The icon fills like a pie while a long file is transcribed, then turns into a green check.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-quiet"/></svg><h4 data-i18n="g5.t">No invented words</h4><p data-i18n="g5.p">Silent stretches are never sent to the model, so it cannot make up text for them.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg><h4 data-i18n="g6.t">Delete means delete</h4><p data-i18n="g6.p">Recordings are erased from disk, not moved to the Trash, and deleted text is overwritten.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-key"/></svg><h4 data-i18n="g7.t">Your keys, your way</h4><p data-i18n="g7.p">Dictate with Right Option, Right Command, Right Control or fn, and record your own shortcuts.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-term"/></svg><h4 data-i18n="g8.t">A local API</h4><p data-i18n="g8.p">Your scripts and other apps can use the same models through an OpenAI compatible API.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section band" id="privacy" aria-labelledby="privacy-title">
+    <div class="wrap privacy">
+      <div>
+        <h2 id="privacy-title" data-i18n="privacy.title">100% private. Everything runs on your Mac.</h2>
+        <p data-i18n="privacy.p">No cloud, no account, no tracking. The engine listens on <code>127.0.0.1</code> only and loads its models in offline mode. The internet is used once, to download the models you choose. Turn Wi-Fi off and dictate: it still works.</p>
+      </div>
+      <ul class="proofs">
+        <li data-i18n="privacy.a">Your voice and your text never leave the device.</li>
+        <li data-i18n="privacy.b">Deleting is permanent: recordings are erased from disk and deleted text is overwritten.</li>
+        <li data-i18n="privacy.c">Settings shows the proof: the device, the address, the memory in use and how long each transcription took.</li>
+        <li data-i18n="privacy.d">The code is open. Read it, build it, change it.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="models" aria-labelledby="models-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="models-title" data-i18n="models.title">The models</h2>
+        <p data-i18n="models.lead">All of them are open models, running through MLX on the Apple Silicon GPU. Download only the ones you need.</p>
+      </div>
+
+      <h3 class="table-title" data-i18n="models.speech">Speech to text</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="th.model">Model</th>
+              <th data-i18n="th.best">Best for</th>
+              <th data-i18n="th.size">Download</th>
+              <th data-i18n="th.token">Hugging Face token</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong dir="ltr">Audar ASR V1 Turbo</strong><small dir="ltr">AudarAI</small></td>
+              <td data-i18n="m.audar">Arabic dialects, and Arabic with English mixed in. Installed by default.</td>
+              <td dir="ltr">4.7 GB</td>
+              <td><span class="tag tag-ok" data-i18n="token.no">Not needed</span></td>
+            </tr>
+            <tr>
+              <td><strong dir="ltr">Cohere Transcribe Arabic</strong><small dir="ltr">Cohere Labs</small></td>
+              <td data-i18n="m.cohere">Arabic, Modern Standard and dialects, and English.</td>
+              <td dir="ltr">4.1 GB</td>
+              <td><span class="tag" data-i18n="token.yes">Free token needed</span></td>
+            </tr>
+            <tr>
+              <td><strong dir="ltr">Whisper Large v3 Turbo</strong><small dir="ltr">OpenAI</small></td>
+              <td data-i18n="m.whisper">English and about 100 languages. The lightest and the fastest to load.</td>
+              <td dir="ltr">1.6 GB</td>
+              <td><span class="tag tag-ok" data-i18n="token.no">Not needed</span></td>
+            </tr>
+            <tr>
+              <td><strong dir="ltr">Qwen3-ASR 1.7B</strong><small dir="ltr">Qwen, Alibaba</small></td>
+              <td data-i18n="m.qwen3">English and 30 languages.</td>
+              <td dir="ltr">4.1 GB</td>
+              <td><span class="tag tag-ok" data-i18n="token.no">Not needed</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note-line" data-i18n="models.note">Two speech models can be on at the same time: one for dictation, and one more for meetings, files or the API.</p>
+
+      <h3 class="table-title" data-i18n="models.llm">Language models</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="th.model">Model</th>
+              <th data-i18n="th.best">Best for</th>
+              <th data-i18n="th.size">Download</th>
+              <th data-i18n="th.token">Hugging Face token</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong dir="ltr">Gemma 4 E4B</strong><small dir="ltr">Google</small></td>
+              <td data-i18n="m.gemma">Summaries and rewrites. The better choice for Arabic.</td>
+              <td dir="ltr">5.2 GB</td>
+              <td><span class="tag tag-ok" data-i18n="token.no">Not needed</span></td>
+            </tr>
+            <tr>
+              <td><strong dir="ltr">Llama 3.1 8B</strong><small dir="ltr">Meta</small></td>
+              <td data-i18n="m.llama">Summaries and rewrites. Strong in English.</td>
+              <td dir="ltr">4.5 GB</td>
+              <td><span class="tag tag-ok" data-i18n="token.no">Not needed</span></td>
+            </tr>
+            <tr>
+              <td><strong dir="ltr">Qwen3 4B</strong><small dir="ltr">Qwen, Alibaba</small></td>
+              <td data-i18n="m.cleanup">Tidies each dictation: punctuation and filler words. Installed by default.</td>
+              <td dir="ltr">2.3 GB</td>
+              <td><span class="tag tag-ok" data-i18n="token.no">Not needed</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note-line" data-i18n="models.note2">Gemma and Llama are optional. They are asleep until you ask for a summary, and they leave memory again when you close the panel.</p>
+    </div>
+  </section>
+
+  <section class="section band" id="requirements" aria-labelledby="req-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="req-title" data-i18n="req.title">What you need</h2>
+      </div>
+      <dl class="specs">
+        <dt data-i18n="req.mac.t">Mac</dt>
+        <dd data-i18n="req.mac.d"><b>Apple Silicon</b> (M1 or newer). Intel Macs are not supported.</dd>
+        <dt data-i18n="req.os.t">System</dt>
+        <dd data-i18n="req.os.d"><b>macOS 14 Sonoma or later.</b> Recording what the Mac plays in a meeting needs macOS 14.4 or later.</dd>
+        <dt data-i18n="req.ram.t">Memory</dt>
+        <dd data-i18n="req.ram.d"><b>8 GB at least, 16 GB recommended.</b> With 8 GB, keep one speech model on (Whisper is the lightest). Summaries are comfortable with 16 GB.</dd>
+        <dt data-i18n="req.disk.t">Disk</dt>
+        <dd data-i18n="req.disk.d"><b>About 8 GB free</b> for the first setup, plus the size of each extra model, from 1.6 to 5.2 GB.</dd>
+        <dt data-i18n="req.net.t">Internet</dt>
+        <dd data-i18n="req.net.d">Only for the first download. After that Navo works offline.</dd>
+        <dt data-i18n="req.hf.t">Hugging Face token</dt>
+        <dd data-i18n="req.hf.d">Only for the Cohere model: a free account and a <b>Read</b> token. Every other model downloads without an account.</dd>
+        <dt data-i18n="req.perm.t">Permissions</dt>
+        <dd data-i18n="req.perm.d">Microphone, and Accessibility so Navo can paste the text. System Audio Recording if you record meetings.</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="section" id="install" aria-labelledby="install-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="install-title" data-i18n="install.title">Install and first setup</h2>
+        <p data-i18n="install.lead">About ten minutes, most of it the one time download.</p>
+      </div>
+      <div class="install">
+        <ol class="steps">
+          <li><div data-i18n="s1">Download the <b>DMG</b> file, open it and drag <b>Navo</b> into <b>Applications</b>.</div></li>
+          <li><div data-i18n="s2">Open Navo. If macOS says it cannot check the app, open <b>System Settings &gt; Privacy &amp; Security</b> and click <b>Open Anyway</b> next to Navo. You do this once.</div></li>
+          <li><div data-i18n="s3">Navo opens its Settings. The <b>Setup</b> list shows every step and what is already on your Mac. Click <b>Install</b>: it downloads Python, MLX, a speech model and the small cleanup model, about 7 GB, one time. With no token it installs Audar.</div></li>
+          <li><div data-i18n="s4"><span class="opt">Optional, for Cohere.</span> Accept the model's terms on Hugging Face, create a <b>Read</b> token at <span dir="ltr">huggingface.co/settings/tokens</span>, paste it in Settings and click <b>Download</b> next to Cohere.</div></li>
+          <li><div data-i18n="s5"><span class="opt">Optional, for summaries.</span> Click <b>Download Gemma</b> in the Setup list (5.2 GB, no token).</div></li>
+          <li><div data-i18n="s6">Allow <b>Microphone</b> and <b>Accessibility</b> when Navo asks.</div></li>
+          <li><div data-i18n="s7">When the sidebar says <b>Local engine: Ready</b>, click into any text field, hold <kbd>Right Option</kbd>, talk, and release.</div></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="section band" id="shortcuts" aria-labelledby="keys-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="keys-title" data-i18n="keys.title">Shortcuts</h2>
+      </div>
+      <dl class="keys">
+        <dt><span data-i18n="keys.hold">Hold</span> <kbd>Right Option</kbd></dt>
+        <dd data-i18n="keys.1">Dictate while the key is down</dd>
+        <dt><span data-i18n="keys.double">Double tap</span> <kbd>Right Option</kbd></dt>
+        <dd data-i18n="keys.2">Dictate hands free, tap again to finish</dd>
+        <dt><kbd>Esc</kbd></dt>
+        <dd data-i18n="keys.3">Cancel the dictation</dd>
+        <dt><kbd>Control</kbd> <kbd>Option</kbd> <kbd>L</kbd></dt>
+        <dd data-i18n="keys.4">Switch between Arabic and English</dd>
+        <dt><kbd>Control</kbd> <kbd>Option</kbd> <kbd>V</kbd></dt>
+        <dd data-i18n="keys.5">Quick paste from the clipboard history</dd>
+        <dt><kbd>Command</kbd> <kbd>1</kbd> <span data-i18n="keys.to">to</span> <kbd>0</kbd></dt>
+        <dd data-i18n="keys.6">Paste item 1 to 10 from the quick paste panel</dd>
+      </dl>
+      <p class="note-line" data-i18n="keys.note">The dictation key and both shortcuts can be changed in Settings.</p>
+    </div>
+  </section>
+
+  <section class="section" id="developers" aria-labelledby="dev-title">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="dev-title" data-i18n="dev.title">For developers: a local API</h2>
+      </div>
+      <div class="dev">
+        <div>
+          <p data-i18n="dev.p">The engine is an OpenAI compatible API on <code>http://127.0.0.1:7861</code>. Send audio and get text, or send text to a language model, from any script or tool while Navo is running. No key is needed.</p>
+          <p data-i18n="dev.build">To build from source, run <code>./scripts/run.sh</code>. The app is native Swift (SwiftUI and AppKit) and the engine is Python (FastAPI and MLX).</p>
+          <p data-repo hidden><a href="#" data-repo-link="/tree/main/docs" data-i18n="dev.docs">Read the API documentation</a></p>
+        </div>
+        <div>
+<pre><span class="c"># Audio in, text out</span>
+curl -F file=@meeting.m4a -F language=ar \
+  http://127.0.0.1:7861/audar/v1/audio/transcriptions</pre>
+<pre><span class="c"># Text in, summary out</span>
+curl http://127.0.0.1:7861/gemma/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"messages": [
+        {"role": "system", "content": "Summarize in three points."},
+        {"role": "user", "content": "..."}]}'</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="download" aria-labelledby="download-title">
+    <div class="wrap">
+      <div class="download">
+        <img src="icon.png" alt="" width="92" height="92">
+        <h2 id="download-title" data-i18n="dl.title">Download Navo</h2>
+        <p data-i18n="dl.p">One file. After the first setup everything works without the internet.</p>
+        <a class="btn btn-primary" href="#download" data-download>
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 9 10 13.5 14.5 9M4 17h12"/></svg>
+          <span data-i18n="dl.cta">Download Navo for Mac</span>
+        </a>
+        <p class="meta"><span data-i18n="dl.meta.a">DMG file</span> | <span data-i18n="dl.meta.v">Version</span> <span dir="ltr" data-version>0.11.1</span> | <span data-i18n="dl.meta.b">macOS 14 or later</span> | <span dir="ltr">Apple Silicon</span></p>
+        <p class="first-open" data-i18n="dl.first">On the first open, macOS may ask you to allow Navo: System Settings &gt; Privacy &amp; Security &gt; Open Anyway.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p data-i18n="foot.p">MIT License. Built on MLX, mlx-audio and mlx-lm, with open models from Cohere Labs, AudarAI, OpenAI, Qwen, Google and Meta. Inspired by Wispr Flow.</p>
+    <nav aria-label="Links">
+      <a href="#" data-repo hidden data-i18n="foot.source">Source code</a>
+      <a href="#" data-repo hidden data-repo-link="/issues" data-i18n="foot.issues">Report a problem</a>
+      <a href="#top" data-i18n="foot.top">Back to top</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  // The three things to set when the page goes online.
+  var NAVO = {
+    version: "0.11.1",
+    // Where the download buttons point: the hosted .dmg, for example a GitHub release file.
+    // As it is, it opens the newest release, where the .dmg from `bash scripts/package.sh` is attached.
+    download: "https://github.com/Devehab/STT-NAVO/releases/latest",
+    // The repository page, for example https://github.com/you/navo. Empty hides the source links.
+    repo: "https://github.com/Devehab/STT-NAVO"
+  };
+
+  var AR = {
+    "nav.features": "المزايا",
+    "nav.models": "النماذج",
+    "nav.requirements": "المتطلبات",
+    "nav.install": "التثبيت",
+    "nav.source": "الكود المصدري",
+    "nav.download": "تنزيل",
+
+    "hero.h1": "تكلّم بدل أن تكتب.",
+    "hero.h1b": "بالعربية، بالإنجليزية، أو بهما معاً في جملة واحدة.",
+    "hero.sub": "Navo لوحة مفاتيح صوتية مفتوحة المصدر لنظام macOS. اضغط مفتاحاً واحداً، تكلّم بشكل طبيعي، ثم ارفع إصبعك، فيلصق Navo النص مرتباً في التطبيق الذي تعمل عليه. التعرف على الصوت والملخصات وسجلّك كلها تبقى على جهازك.",
+    "hero.cta": "تنزيل لنظام Mac",
+    "hero.cta2": "طريقة التثبيت",
+    "hero.meta": "مجاني ومفتوح المصدر (MIT) | macOS 14 أو أحدث | معالجات Apple Silicon",
+
+    "demo.toast": "أُلصق عنك",
+    "demo.hint": "جرّب: اضغط مطولاً على هذا المفتاح، أو على مفتاح Option في لوحة مفاتيحك، ثم ارفع إصبعك.",
+    "demo.key": "اضغط مطولاً لترى Navo يستمع",
+    "ph.hold": "تضغط المفتاح",
+    "ph.listen": "Navo يستمع",
+    "ph.write": "يكتب على جهازك",
+    "ph.paste": "يلصق عنك",
+
+    "how.title": "ثلاث حركات، في أي تطبيق",
+    "how.1.t": "اضغط",
+    "how.1.p": "اضغط مطولاً على <kbd>Right Option</kbd> في أي مكان تكتب فيه. يفتح شريط Flow Bar بموجة صوتية حيّة، فترى أن Navo يسمعك.",
+    "how.2.t": "تكلّم",
+    "how.2.p": "تكلّم كما تتكلم عادة. اللهجات العربية، والإنجليزية، والتنقل بينهما في وسط الجملة، كلها تعمل.",
+    "how.3.t": "ارفع إصبعك",
+    "how.3.p": "يرتب Navo النص ويلصقه حيث يقف المؤشر. لا تنسخ، ولا تبدّل النوافذ، ولا تضغط شيئاً. انقر المفتاح مرتين للتكلم دون ضغط مستمر، و <kbd>Esc</kbd> يلغي.",
+
+    "features.title": "ماذا يفعل Navo لك",
+    "features.lead": "الإملاء هو البداية. Navo يكتب اجتماعاتك أيضاً، ويحوّل التسجيلات إلى نص، ويكتب الملخص، ويتذكر ما نسخته. ولا شيء من ذلك يغادر جهازك.",
+
+    "f1.t": "يلصق النص عنك",
+    "f1.p": "ارفع إصبعك عن المفتاح، فتجد الجملة في بريدك. يضع Navo النص في الحافظة، ويضغط <kbd>Command</kbd> <kbd>V</kbd> في التطبيق الذي أنت فيه، ثم يعيد إلى الحافظة ما كنت قد نسخته قبل ذلك. لا تبدّل النوافذ، ولا تلصق بنفسك.",
+    "f1.a": "يعمل حيثما كان المؤشر في حقل نص: البريد، Slack، المتصفح، محرر الكود.",
+    "f1.b": "قبل اللصق، يضبط نموذج صغير على جهازك علامات الترقيم ويحذف كلمات الحشو. لا يترجم أبداً ولا يغيّر لهجتك.",
+    "f1.c": "لا يوجد حقل نص؟ يبقى النص في الحافظة ويخبرك Navo بذلك. وحقول كلمات المرور لا يُلصق فيها أبداً.",
+    "f1.d": "كل إملاء يبقى على جهازك مع تسجيله: ابحث فيه، استمع إليه، أو أعد المحاولة.",
+    "v1.before": "حافظتك",
+    "v1.paste": "Navo يلصق",
+    "v1.after": "حافظتك بعد اللصق",
+    "v1.same": "كما هي",
+
+    "f2.t": "العربية والإنجليزية، بينهما اختصار واحد",
+    "f2.p": "اضغط <kbd>Control</kbd> <kbd>Option</kbd> <kbd>L</kbd> في أي تطبيق، أو انقر زر AR / EN على شريط Flow Bar، حتى في منتصف الجملة.",
+    "f2.a": "العربية كما يتكلمها الناس: اللهجات، لا الفصحى فقط.",
+    "f2.b": "قل مصطلحاً إنجليزياً داخل جملة عربية، فيُكتب بحروفه الإنجليزية.",
+    "f2.c": "في وضع Auto يتعرف النموذج على اللغة بنفسه.",
+
+    "f3.t": "اجتماعك يُكتب وهو ما زال جارياً",
+    "f3.p": "سجّل اجتماع Google Meet أو مكالمة Zoom أو أي صوت يشغّله جهازك، أو الميكروفون، أو الاثنين معاً. كل دقيقة تقريباً يتحول آخر جزء إلى نص، فتقرأ والحديث ما زال مستمراً.",
+    "f3.a": "لا يُقطع الصوت إلا داخل لحظة صمت، فلا تنقسم أي كلمة إلى نصفين.",
+    "f3.b": "أوقف مؤقتاً ثم تابع. التسجيل يُحفظ على أجزاء، فلا يضيع شيء يُذكر عند أي انقطاع.",
+    "f3.c": "شريط القوائم يُظهر نقطة حمراء والوقت أثناء التسجيل.",
+
+    "f4.t": "الملخص جاهز قبل أن تغلق حاسوبك",
+    "f4.p": "نقرة واحدة على AI تحوّل ساعة من الحديث إلى النقاط الأساسية والقرارات والمهام، مع الأسماء والأرقام. وتعيد أيضاً صياغة أي نص كبريد رسمي، أو بريد ودّي، أو رسالة قصيرة، أو مسودة مرتبة، بالعربية أو الإنجليزية، أياً كانت اللغة التي تكلمت بها.",
+    "f4.a": "يكتبه Gemma 4 أو Llama 3.1 على جهازك، وترى الجواب وهو يُكتب.",
+    "f4.b": "لا حساب ولا مفتاح API. ويعمل و Wi-Fi مطفأ.",
+    "f4.c": "الاجتماعات الطويلة تُقرأ على أجزاء، فساعة من الحديث ليست مشكلة.",
+
+    "f5.t": "أي تسجيل يصبح نصاً تبحث فيه",
+    "f5.p": "أضف تسجيلات Voice Memos، ورسائل واتساب الصوتية، وملفات MP3 و M4A و WAV و FLAC. يكتبها Navo جزءاً بعد جزء، ومع التوقيت إن أردت، جاهزة للنسخ أو التصدير.",
+    "f5.a": "البحث يشمل العناوين وداخل النص. والعربية تُطابَق دون اعتبار للتشكيل أو أشكال الهمزة.",
+    "f5.b": "فلتر للتاريخ: اليوم، أمس، آخر 7 أيام أو 30 يوماً، أو يوم من التقويم.",
+    "f5.c": "أدخل الصوت بزر Share في Voice Memos، أو باللصق، أو بالسحب، أو بـ Open With في Finder.",
+
+    "f6.t": "كل ما نسخته، على بُعد اختصار واحد",
+    "f6.p": "اضغط <kbd>Control</kbd> <kbd>Option</kbd> <kbd>V</kbd> في أي تطبيق. تفتح لوحة صغيرة فوق عملك، مثل Spotlight، فيها آخر عشرة نصوص نسختها. اكتب للبحث في كل ما حفظه Navo، ثم اضغط Return، فيُلصق حيث كنت تعمل.",
+    "f6.a": "نسخت شيئاً على iPhone؟ مع تفعيل Universal Clipboard يصل إلى هنا أيضاً.",
+    "f6.b": "ضع نجمة على ما تريد حفظه دائماً. والباقي يُحذف بعد المدة التي تختارها، من يوم واحد إلى شهرين.",
+    "f6.c": "ما تنسخه برامج كلمات المرور لا يُحفظ أبداً.",
+
+    "f7.t": "سريع حين تتكلم، ويختفي حين تتوقف",
+    "f7.p": "النماذج تعمل على معالج الرسوميات في جهازك عبر MLX، إطار Apple لمعالجات Apple Silicon. يوقظ Navo المحرك لحظة ضغطك على المفتاح، فيُحمَّل النموذج وأنت ما زلت تتكلم. وحين تنتهي، يعيد الذاكرة إلى جهازك.",
+    "f7.a": "أنت تختار مدة الخمول: دقيقتان، أو 5، أو 10، أو 30، أو 60 دقيقة.",
+    "f7.b": "في وضع السكون يأخذ المحرك بضع عشرات من الميغابايت بدل عدة غيغابايت.",
+    "f7.c": "نموذج الصوت ونموذج اللغة لا يجتمعان في الذاكرة أبداً، ونموذج اللغة لا يأخذ أكثر من 6 غيغابايت.",
+    "v7.talk": "وأنت تتكلم",
+    "v7.sleep": "في السكون",
+    "v7.mb": "بضع عشرات MB",
+    "v7.idle": "تحرير الذاكرة عند الخمول، بعد",
+    "v7.2": "دقيقتين",
+    "v7.5": "5 دقائق",
+    "v7.10": "10 دقائق",
+    "v7.30": "30 دقيقة",
+    "v7.60": "ساعة",
+
+    "more.title": "تفاصيل صغيرة تصنع الفرق",
+    "g1.t": "لا يضيع أي إملاء",
+    "g1.p": "إن فشل التفريغ، يبقى التسجيل في سجلّك ومعه زر Retry.",
+    "g2.t": "قاموسك الخاص",
+    "g2.p": "علّمه الأسماء والمصطلحات، وحدد استبدالات ثابتة لما يجب أن يكتبه.",
+    "g3.t": "محركان جنباً إلى جنب",
+    "g3.p": "شغّل التسجيل نفسه على نموذجين للصوت، وقارن ما كتبه كل منهما.",
+    "g4.t": "التقدم في شريط القوائم",
+    "g4.p": "تمتلئ الأيقونة كدائرة أثناء تفريغ ملف طويل، ثم تتحول إلى علامة خضراء.",
+    "g5.t": "لا كلمات مختلقة",
+    "g5.p": "فترات الصمت لا تُرسل إلى النموذج أبداً، فلا يختلق لها نصاً.",
+    "g6.t": "الحذف حذف فعلاً",
+    "g6.p": "التسجيلات تُمحى من القرص ولا تُنقل إلى سلة المهملات، والنص المحذوف يُكتب فوقه.",
+    "g7.t": "مفاتيحك كما تحب",
+    "g7.p": "أملِ بمفتاح Right Option أو Right Command أو Right Control أو fn، وسجّل اختصاراتك الخاصة.",
+    "g8.t": "API محلي",
+    "g8.p": "سكربتاتك وتطبيقاتك الأخرى تستخدم النماذج نفسها عبر API متوافق مع OpenAI.",
+
+    "privacy.title": "خصوصية 100%. كل شيء يعمل على جهازك.",
+    "privacy.p": "لا سحابة، لا حساب، ولا تتبّع. المحرك يستمع على العنوان <code>127.0.0.1</code> فقط، ويحمّل نماذجه في وضع عدم الاتصال. الإنترنت يُستخدم مرة واحدة، لتنزيل النماذج التي تختارها. أطفئ Wi-Fi وجرّب الإملاء: سيعمل.",
+    "privacy.a": "صوتك ونصوصك لا تغادر الجهاز أبداً.",
+    "privacy.b": "الحذف نهائي: التسجيلات تُمحى من القرص، والنص المحذوف يُكتب فوقه.",
+    "privacy.c": "الإعدادات تعرض الدليل: الجهاز، العنوان، الذاكرة المستخدمة، ومدة كل تفريغ.",
+    "privacy.d": "الكود مفتوح. اقرأه، ابنِه، وعدّله.",
+
+    "models.title": "النماذج",
+    "models.lead": "كلها نماذج مفتوحة تعمل عبر MLX على معالج الرسوميات في Apple Silicon. نزّل ما تحتاجه فقط.",
+    "models.speech": "تحويل الصوت إلى نص",
+    "models.llm": "نماذج اللغة",
+    "th.model": "النموذج",
+    "th.best": "الأنسب لـ",
+    "th.size": "حجم التنزيل",
+    "th.token": "Token من Hugging Face",
+    "token.no": "غير مطلوب",
+    "token.yes": "مطلوب، وهو مجاني",
+    "m.audar": "اللهجات العربية، والعربية المخلوطة بالإنجليزية. يُثبَّت تلقائياً.",
+    "m.cohere": "العربية، الفصحى واللهجات، والإنجليزية.",
+    "m.whisper": "الإنجليزية ونحو 100 لغة. الأخف والأسرع تحميلاً.",
+    "m.qwen3": "الإنجليزية و30 لغة.",
+    "m.gemma": "الملخصات وإعادة الصياغة. الخيار الأفضل للعربية.",
+    "m.llama": "الملخصات وإعادة الصياغة. قوي في الإنجليزية.",
+    "m.cleanup": "يرتب كل إملاء: علامات الترقيم وكلمات الحشو. يُثبَّت تلقائياً.",
+    "models.note": "يمكن تشغيل نموذجين للصوت في الوقت نفسه: واحد للإملاء، وآخر للاجتماعات والملفات أو للـ API.",
+    "models.note2": "Gemma و Llama اختياريان. يبقيان نائمين إلى أن تطلب ملخصاً، ويخرجان من الذاكرة عند إغلاق اللوحة.",
+
+    "req.title": "ما الذي تحتاجه",
+    "req.mac.t": "الجهاز",
+    "req.mac.d": "<b>معالج Apple Silicon</b> (M1 أو أحدث). أجهزة Intel غير مدعومة.",
+    "req.os.t": "النظام",
+    "req.os.d": "<b>macOS 14 Sonoma أو أحدث.</b> تسجيل صوت الجهاز في الاجتماعات يحتاج macOS 14.4 أو أحدث.",
+    "req.ram.t": "الذاكرة",
+    "req.ram.d": "<b>8 غيغابايت على الأقل، ويُنصح بـ 16 غيغابايت.</b> على 8 غيغابايت شغّل نموذج صوت واحداً (Whisper هو الأخف). والملخصات تعمل براحة على 16 غيغابايت.",
+    "req.disk.t": "مساحة القرص",
+    "req.disk.d": "<b>نحو 8 غيغابايت</b> للإعداد الأول، ثم حجم كل نموذج إضافي، من 1.6 إلى 5.2 غيغابايت.",
+    "req.net.t": "الإنترنت",
+    "req.net.d": "للتنزيل الأول فقط. بعده يعمل Navo دون اتصال.",
+    "req.hf.t": "Token من Hugging Face",
+    "req.hf.d": "لنموذج Cohere فقط: حساب مجاني و Token من نوع <b>Read</b>. كل النماذج الأخرى تُنزَّل دون حساب.",
+    "req.perm.t": "الأذونات",
+    "req.perm.d": "الميكروفون، و Accessibility ليستطيع Navo لصق النص. و System Audio Recording إن كنت تسجّل الاجتماعات.",
+
+    "install.title": "التثبيت والإعداد الأول",
+    "install.lead": "نحو عشر دقائق، أغلبها للتنزيل الذي يحدث مرة واحدة.",
+    "s1": "نزّل ملف <b>DMG</b>، افتحه، واسحب <b>Navo</b> إلى مجلد <b>Applications</b>.",
+    "s2": "افتح Navo. إن قال macOS إنه لا يستطيع التحقق من التطبيق، افتح <b dir=\"ltr\">System Settings &gt; Privacy &amp; Security</b> واضغط <b>Open Anyway</b> بجانب Navo. تفعل ذلك مرة واحدة.",
+    "s3": "يفتح Navo إعداداته. قائمة <b>Setup</b> تعرض كل خطوة وما هو موجود على جهازك. اضغط <b>Install</b>: ينزّل Python و MLX ونموذج صوت ونموذج الترتيب الصغير، نحو 7 غيغابايت ولمرة واحدة. دون Token يُثبَّت Audar.",
+    "s4": "<span class=\"opt\">اختياري، لنموذج Cohere.</span> وافق على شروط النموذج في Hugging Face، أنشئ Token من نوع <b>Read</b> من <span dir=\"ltr\">huggingface.co/settings/tokens</span>، الصقه في الإعدادات واضغط <b>Download</b> بجانب Cohere.",
+    "s5": "<span class=\"opt\">اختياري، للملخصات.</span> اضغط <b>Download Gemma</b> في قائمة Setup (5.2 غيغابايت، دون Token).",
+    "s6": "اسمح بـ <b>Microphone</b> و <b>Accessibility</b> عندما يطلبهما Navo.",
+    "s7": "عندما يظهر في الشريط الجانبي <b dir=\"ltr\">Local engine: Ready</b>، انقر داخل أي حقل نص، اضغط مطولاً على <kbd>Right Option</kbd>، تكلّم، ثم ارفع إصبعك.",
+    "install.alt": "قائمة Setup في الإعدادات مع النماذج الموجودة على الجهاز",
+
+    "keys.title": "الاختصارات",
+    "keys.hold": "ضغط مطوّل",
+    "keys.double": "نقرتان",
+    "keys.to": "إلى",
+    "keys.1": "الإملاء ما دام المفتاح مضغوطاً",
+    "keys.2": "الإملاء دون ضغط مستمر، ونقرة أخرى للإنهاء",
+    "keys.3": "إلغاء الإملاء",
+    "keys.4": "التبديل بين العربية والإنجليزية",
+    "keys.5": "اللصق السريع من سجل الحافظة",
+    "keys.6": "لصق العنصر 1 إلى 10 من لوحة اللصق السريع",
+    "keys.note": "مفتاح الإملاء والاختصاران يمكن تغييرها من الإعدادات.",
+
+    "dev.title": "للمطورين: API محلي",
+    "dev.p": "المحرك يوفر API متوافقاً مع OpenAI على العنوان <code>http://127.0.0.1:7861</code>. أرسل صوتاً واستلم نصاً، أو أرسل نصاً إلى نموذج اللغة، من أي سكربت أو أداة ما دام Navo يعمل. لا حاجة إلى أي مفتاح.",
+    "dev.build": "للبناء من المصدر شغّل <code>./scripts/run.sh</code>. التطبيق مكتوب بلغة Swift (SwiftUI و AppKit)، والمحرك بلغة Python (FastAPI و MLX).",
+    "dev.docs": "اقرأ توثيق الـ API",
+
+    "dl.title": "نزّل Navo",
+    "dl.p": "ملف واحد. وبعد الإعداد الأول يعمل كل شيء دون إنترنت.",
+    "dl.cta": "تنزيل Navo لنظام Mac",
+    "dl.meta.a": "ملف DMG",
+    "dl.meta.v": "الإصدار",
+    "dl.meta.b": "macOS 14 أو أحدث",
+    "dl.first": "عند أول فتح قد يطلب macOS السماح لـ Navo: <span dir=\"ltr\">System Settings &gt; Privacy &amp; Security &gt; Open Anyway</span>.",
+
+    "foot.p": "رخصة MIT. مبني على MLX و mlx-audio و mlx-lm، مع نماذج مفتوحة من Cohere Labs و AudarAI و OpenAI و Qwen و Google و Meta. مستوحى من Wispr Flow.",
+    "foot.source": "الكود المصدري",
+    "foot.issues": "بلّغ عن مشكلة",
+    "foot.top": "إلى الأعلى"
+  };
+
+  var TITLES = {
+    en: "Navo, voice typing for Mac in Arabic and English",
+    ar: "Navo، الإملاء الصوتي لنظام Mac بالعربية والإنجليزية"
+  };
+  var root = document.documentElement;
+  var nodes = Array.prototype.slice.call(document.querySelectorAll("[data-i18n]"));
+  var alts = Array.prototype.slice.call(document.querySelectorAll("[data-i18n-alt]"));
+  var EN = {};
+  nodes.forEach(function (node) {
+    if (!(node.dataset.i18n in EN)) EN[node.dataset.i18n] = node.innerHTML;
+  });
+  alts.forEach(function (node) {
+    EN[node.dataset.i18nAlt] = node.getAttribute("alt");
+  });
+  var labels = Array.prototype.slice.call(document.querySelectorAll("[data-i18n-label]"));
+  labels.forEach(function (node) {
+    EN[node.dataset.i18nLabel] = node.getAttribute("aria-label");
+  });
+  var keepTitle = !document.title || /voice typing/.test(document.title);
+  var switcher = document.getElementById("lang-switch");
+  var current = "en";
+
+  function stored() {
+    try {
+      return localStorage.getItem("navo-lang");
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function remember(lang) {
+    try {
+      localStorage.setItem("navo-lang", lang);
+    } catch (error) {
+      /* private window: the choice lasts for this visit */
+    }
+  }
+
+  // A link ending in #ar or #en wins, then what the visitor chose before, then the browser's
+  // languages in the visitor's own order.
+  function preferred() {
+    var hash = location.hash.replace("#", "");
+    if (hash === "ar" || hash === "en") return hash;
+    var saved = stored();
+    if (saved === "ar" || saved === "en") return saved;
+    var list = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || "en"];
+    for (var i = 0; i < list.length; i += 1) {
+      var code = String(list[i]).toLowerCase();
+      if (code.indexOf("ar") === 0) return "ar";
+      if (code.indexOf("en") === 0) return "en";
+    }
+    return "en";
+  }
+
+  function apply(lang) {
+    current = lang === "ar" ? "ar" : "en";
+    var words = current === "ar" ? AR : EN;
+    root.lang = current;
+    root.dir = current === "ar" ? "rtl" : "ltr";
+    nodes.forEach(function (node) {
+      var text = words[node.dataset.i18n];
+      if (text != null) node.innerHTML = text;
+    });
+    alts.forEach(function (node) {
+      var text = words[node.dataset.i18nAlt];
+      if (text != null) node.setAttribute("alt", text);
+    });
+    labels.forEach(function (node) {
+      var text = words[node.dataset.i18nLabel];
+      if (text != null) node.setAttribute("aria-label", text);
+    });
+    if (keepTitle) document.title = TITLES[current];
+    if (switcher) {
+      var other = current === "ar" ? "en" : "ar";
+      switcher.textContent = other === "ar" ? "العربية" : "English";
+      switcher.lang = other;
+      switcher.setAttribute("aria-label", other === "ar" ? "عرض الصفحة بالعربية" : "Show this page in English");
+    }
+  }
+
+  if (switcher) {
+    switcher.addEventListener("click", function () {
+      var next = current === "ar" ? "en" : "ar";
+      remember(next);
+      apply(next);
+    });
+  }
+
+  // Links and version.
+  document.querySelectorAll("[data-download]").forEach(function (link) {
+    if (NAVO.download) link.setAttribute("href", NAVO.download);
+  });
+  document.querySelectorAll("[data-version]").forEach(function (node) {
+    node.textContent = NAVO.version;
+  });
+  document.querySelectorAll("[data-repo]").forEach(function (node) {
+    if (!NAVO.repo) return;
+    node.hidden = false;
+    var link = node.tagName === "A" ? node : node.querySelector("a");
+    if (link) link.setAttribute("href", NAVO.repo + (link.dataset.repoLink || ""));
+  });
+
+  // The hero demo. A key goes down, the Flow Bar opens and shows a voice, the key comes up, Navo
+  // works for a moment and the sentence is pasted into the app. It plays by itself, and the
+  // visitor can drive it: hold the key on the page, or the Option key on the keyboard.
+  var samples = [
+    { app: "Mail", meta: "To: Sara", chip: "EN", text: "Hi Sara, thanks for sending the draft. Could we move the pricing table up, right after the introduction?" },
+    { app: "WhatsApp", meta: "Samer", chip: "AR", text: "مرحبا سامر، خلصت مراجعة العرض وبعتلك الملاحظات على الإيميل." },
+    { app: "Notes", meta: "Weekend trip", chip: "EN", text: "Leave early on Saturday, stop at the lake for breakfast, then take the coast road." },
+    { app: "Slack", meta: "# product", chip: "AR", text: "يا شباب، الـ build الجديد جاهز على الـ staging، جربوه قبل ما نعمل release." }
+  ];
+  var ui = {
+    app: document.getElementById("demo-app"),
+    meta: document.getElementById("demo-meta"),
+    text: document.getElementById("demo-text"),
+    toast: document.getElementById("demo-toast"),
+    bar: document.getElementById("demo-fb"),
+    wave: document.getElementById("demo-wave"),
+    time: document.getElementById("demo-time"),
+    chip: document.getElementById("demo-chip"),
+    work: document.getElementById("demo-work"),
+    key: document.getElementById("demo-key"),
+    phases: document.getElementById("demo-phases")
+  };
+  var ready = Object.keys(ui).every(function (name) { return ui[name]; });
+  var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var turn = 0; // a new number cancels whatever sequence is still waiting
+  var next = 1; // the first sample is already on the page
+  var listening = false;
+  var byHand = false;
+  var bars = [];
+  var levels = [];
+  var waveTimer = null;
+  var heard = 0;
+
+  // A voice, roughly: words of a few syllables with short gaps between them.
+  var voice = { word: 0, gap: 0, beat: 0, energy: 0, loud: 0.7, seed: 7 };
+  function chance() {
+    voice.seed = (voice.seed * 16807) % 2147483647;
+    return voice.seed / 2147483647;
+  }
+  function level() {
+    if (voice.gap > 0) {
+      voice.gap -= 1;
+      voice.energy *= 0.35;
+      return voice.energy * 0.6 + chance() * 0.04;
+    }
+    if (voice.word <= 0) {
+      if (chance() < 0.22) {
+        voice.gap = 2 + Math.floor(chance() * 5);
+        return level();
+      }
+      voice.word = 3 + Math.floor(chance() * 6);
+      voice.beat = 0;
+      voice.loud = 0.45 + chance() * 0.55;
+    }
+    voice.word -= 1;
+    voice.beat += 1;
+    var shape = Math.pow(Math.abs(Math.sin(voice.beat * 1.15 + chance() * 1.2)), 1.6);
+    voice.energy = voice.energy * 0.25 + (0.12 + 0.88 * shape) * voice.loud * 0.78;
+    if (voice.word === 0) voice.gap = 1 + Math.floor(chance() * 2);
+    return Math.min(1, voice.energy);
+  }
+
+  function drawWave() {
+    for (var i = 0; i < bars.length; i += 1) {
+      bars[i].style.height = (3 + levels[i] * 22).toFixed(1) + "px";
+    }
+  }
+
+  function startWave() {
+    stopWave();
+    heard = Date.now();
+    for (var i = 0; i < levels.length; i += 1) levels[i] = 0;
+    drawWave();
+    ui.time.textContent = "0:00";
+    waveTimer = setInterval(function () {
+      levels.shift();
+      levels.push(level());
+      drawWave();
+      var seconds = Math.floor((Date.now() - heard) / 1000);
+      ui.time.textContent = Math.floor(seconds / 60) + ":" + (seconds % 60 < 10 ? "0" : "") + (seconds % 60);
+    }, 75);
+  }
+
+  function stopWave() {
+    if (waveTimer) clearInterval(waveTimer);
+    waveTimer = null;
+  }
+
+  function phase(name) {
+    Array.prototype.forEach.call(ui.phases.children, function (item) {
+      item.classList.toggle("on", item.dataset.phase === name);
+    });
+  }
+
+  function wait(ms, mine) {
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        if (mine === turn) resolve();
+      }, ms);
+    });
+  }
+
+  function pressed(sample) {
+    listening = true;
+    ui.key.classList.add("down");
+    ui.toast.classList.remove("show");
+    ui.app.textContent = sample.app;
+    ui.meta.textContent = sample.meta;
+    ui.text.textContent = "";
+    ui.text.classList.remove("fresh");
+    ui.chip.textContent = sample.chip;
+    ui.bar.dataset.state = "rec";
+    phase("hold");
+    startWave();
+  }
+
+  function released(sample, mine) {
+    listening = false;
+    ui.key.classList.remove("down");
+    stopWave();
+    ui.work.textContent = "Transcribing…";
+    ui.bar.dataset.state = "work";
+    phase("write");
+    return wait(850, mine)
+      .then(function () {
+        ui.work.textContent = "Polishing…";
+        return wait(600, mine);
+      })
+      .then(function () {
+        // Pasted in one go, the way Navo does it: the whole sentence lands at the cursor.
+        ui.text.textContent = sample.text;
+        void ui.text.offsetWidth;
+        ui.text.classList.add("fresh");
+        ui.toast.classList.add("show");
+        ui.bar.dataset.state = "orb";
+        phase("paste");
+      });
+  }
+
+  function play() {
+    var mine = (turn += 1);
+    byHand = false;
+    var sample = samples[next % samples.length];
+    next += 1;
+    pressed(sample);
+    wait(700, mine)
+      .then(function () {
+        phase("listen");
+        return wait(2900, mine);
+      })
+      .then(function () {
+        return released(sample, mine);
+      })
+      .then(function () {
+        return wait(4200, mine);
+      })
+      .then(play);
+  }
+
+  function holdStart() {
+    if (listening && byHand) return;
+    var mine = (turn += 1);
+    byHand = true;
+    var sample = samples[next % samples.length];
+    next += 1;
+    pressed(sample);
+    ui.key.dataset.sample = String(next - 1);
+    wait(500, mine).then(function () {
+      if (listening) phase("listen");
+    });
+  }
+
+  function holdEnd() {
+    if (!listening || !byHand) return;
+    var mine = (turn += 1);
+    var sample = samples[(Number(ui.key.dataset.sample) || 0) % samples.length];
+    released(sample, mine)
+      .then(function () {
+        return wait(7000, mine);
+      })
+      .then(function () {
+        if (!still) play();
+      });
+  }
+
+  if (ready) {
+    for (var b = 0; b < 30; b += 1) {
+      var bar = document.createElement("i");
+      ui.wave.appendChild(bar);
+      bars.push(bar);
+      levels.push(0);
+    }
+    ui.key.addEventListener("pointerdown", function (event) {
+      event.preventDefault();
+      if (ui.key.setPointerCapture) ui.key.setPointerCapture(event.pointerId);
+      holdStart();
+    });
+    ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (name) {
+      ui.key.addEventListener(name, holdEnd);
+    });
+    ui.key.addEventListener("keydown", function (event) {
+      if ((event.key === " " || event.key === "Enter") && !event.repeat) {
+        event.preventDefault();
+        holdStart();
+      }
+    });
+    ui.key.addEventListener("keyup", function (event) {
+      if (event.key === " " || event.key === "Enter") holdEnd();
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Alt" && !event.repeat) holdStart();
+    });
+    document.addEventListener("keyup", function (event) {
+      if (event.key === "Alt") holdEnd();
+    });
+    window.addEventListener("blur", holdEnd);
+  }
+
+  apply(preferred());
+  if (ready && current === "ar") {
+    // An Arabic visitor first sees an Arabic sentence in the note.
+    ui.app.textContent = samples[1].app;
+    ui.meta.textContent = samples[1].meta;
+    ui.text.textContent = samples[1].text;
+    next = 2;
+  }
+  if (ready && !still) {
+    var first = turn;
+    wait(3200, first).then(play);
+  }
+})();
+</script>
+</body>
+</html>

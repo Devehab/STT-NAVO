@@ -1,0 +1,21 @@
+# Swift
+.build/
+dist/
+.swiftpm/
+build/
+*.xcodeproj/xcuserdata/
+DerivedData/
+
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+
+# Local backups
+backups/
+_to_delete/
+
+# Secrets
+.env
+
+.DS_Store
