@@ -1774,9 +1774,36 @@ pre .c {
 .download .meta {
   font-size: 0.9rem;
 }
-.download .first-open {
-  font-size: 0.88rem;
-  margin-block-start: 10px;
+.open-guide {
+  max-width: 44em;
+  margin: 34px auto 0;
+  padding: clamp(18px, 3vw, 30px);
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  text-align: start;
+}
+.open-guide h3 {
+  font-size: 1.3rem;
+  margin-block-end: 8px;
+}
+.download .open-guide p {
+  max-width: none;
+  margin-inline: 0;
+}
+.open-guide .steps {
+  margin-block: 20px;
+  max-width: none;
+  color: var(--ink);
+}
+.open-guide .alt {
+  font-size: 0.92rem;
+  margin-block: 14px 8px;
+}
+.open-guide pre {
+  font-size: 0.82rem;
+  padding: 12px 16px;
+  border-radius: 12px;
 }
 
 /* Footer */
@@ -2312,7 +2339,20 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
           <span data-i18n="dl.cta">Download Navo for Mac</span>
         </a>
         <p class="meta"><span data-i18n="dl.meta.a">DMG file</span> | <span data-i18n="dl.meta.v">Version</span> <span dir="ltr" data-version>0.11.1</span> | <span data-i18n="dl.meta.b">macOS 14 or later</span> | <span dir="ltr">Apple Silicon</span></p>
-        <p class="first-open" data-i18n="dl.first">On the first open, macOS may ask you to allow Navo: System Settings &gt; Privacy &amp; Security &gt; Open Anyway.</p>
+        <div class="open-guide" id="first-open">
+          <h3 data-i18n="og.title">Opening Navo the first time</h3>
+          <p data-i18n="og.why">Navo is free and open source, and it is not signed with a paid Apple developer account. So macOS blocks it the first time and asks you to allow it yourself. You do this once, and it takes a minute.</p>
+          <ol class="steps">
+            <li><div data-i18n="og.1">Open the downloaded <b dir="ltr">Navo.dmg</b> and drag <b>Navo</b> onto <b>Applications</b>.</div></li>
+            <li><div data-i18n="og.2">Open <b>Navo</b> from Applications. macOS says it <b>could not verify</b> the app. Click <b>Done</b> (do not move it to the Trash).</div></li>
+            <li><div data-i18n="og.3">Open <b dir="ltr">System Settings &gt; Privacy &amp; Security</b> and scroll down to <b>Security</b>. Next to "Navo was blocked", click <b>Open Anyway</b>.</div></li>
+            <li><div data-i18n="og.4">Click <b>Open Anyway</b> again and confirm with your password or Touch ID. Navo opens, and from now on it opens like any other app.</div></li>
+            <li><div data-i18n="og.5">Navo then asks for <b>Microphone</b> and <b>Accessibility</b>. Allow both: the first lets it hear you, the second lets it paste the text for you.</div></li>
+          </ol>
+          <p class="alt" data-i18n="og.alt">Comfortable with Terminal? This one line does the same as steps 2 to 4:</p>
+          <pre>xattr -dr com.apple.quarantine /Applications/Navo.app</pre>
+          <p class="alt" data-i18n="og.trust">Do not want to trust a download? The code is open: read it and build Navo yourself with <code>./scripts/run.sh</code>.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -2337,8 +2377,8 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
   var NAVO = {
     version: "0.11.1",
     // Where the download buttons point: the hosted .dmg, for example a GitHub release file.
-    // As it is, it opens the newest release, where the .dmg from `bash scripts/package.sh` is attached.
-    download: "https://github.com/Devehab/STT-NAVO/releases/latest",
+    // `bash scripts/release.sh` uploads Navo.dmg to a new release, and this link always gives the newest one.
+    download: "https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg",
     // The repository page, for example https://github.com/you/navo. Empty hides the source links.
     repo: "https://github.com/Devehab/STT-NAVO"
   };
@@ -2528,7 +2568,15 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     "dl.meta.a": "ملف DMG",
     "dl.meta.v": "الإصدار",
     "dl.meta.b": "macOS 14 أو أحدث",
-    "dl.first": "عند أول فتح قد يطلب macOS السماح لـ Navo: <span dir=\"ltr\">System Settings &gt; Privacy &amp; Security &gt; Open Anyway</span>.",
+    "og.title": "فتح Navo لأول مرة",
+    "og.why": "Navo مجاني ومفتوح المصدر، وهو غير موقّع بحساب مطوّر مدفوع من Apple. لذلك يحجبه macOS في المرة الأولى ويطلب منك أن تسمح به بنفسك. تفعل ذلك مرة واحدة، ويأخذ دقيقة.",
+    "og.1": "افتح ملف <b dir=\"ltr\">Navo.dmg</b> الذي نزّلته، واسحب <b>Navo</b> إلى <b>Applications</b>.",
+    "og.2": "افتح <b>Navo</b> من Applications. سيقول macOS إنه <b>لم يستطع التحقق</b> من التطبيق. اضغط <b>Done</b> (لا تنقله إلى سلة المهملات).",
+    "og.3": "افتح <b dir=\"ltr\">System Settings &gt; Privacy &amp; Security</b> وانزل إلى قسم <b>Security</b>. بجانب عبارة \"Navo was blocked\" اضغط <b>Open Anyway</b>.",
+    "og.4": "اضغط <b>Open Anyway</b> مرة أخرى وأكّد بكلمة المرور أو Touch ID. يفتح Navo، ومن الآن يفتح مثل أي تطبيق آخر.",
+    "og.5": "بعدها يطلب Navo إذن <b>Microphone</b> وإذن <b>Accessibility</b>. اسمح بهما: الأول ليسمعك، والثاني ليلصق النص عنك.",
+    "og.alt": "تفضّل Terminal؟ هذا السطر يفعل ما تفعله الخطوات 2 إلى 4:",
+    "og.trust": "لا تريد أن تثق بملف منزَّل؟ الكود مفتوح: اقرأه وابنِ Navo بنفسك بالأمر <code>./scripts/run.sh</code>.",
 
     "foot.p": "رخصة MIT. مبني على MLX و mlx-audio و mlx-lm، مع نماذج مفتوحة من Cohere Labs و AudarAI و OpenAI و Qwen و Google و Meta. مستوحى من Wispr Flow.",
     "foot.source": "الكود المصدري",

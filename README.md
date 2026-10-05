@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://devehab.github.io/STT-NAVO/">Website</a> |
-  <a href="https://github.com/Devehab/STT-NAVO/releases/latest">Download for Mac</a> |
+  <a href="https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg">Download for Mac</a> |
   <a href="#install">Install</a> |
   <a href="docs/API.md">Local API</a>
 </p>
@@ -81,8 +81,8 @@ The macOS app is native Swift (SwiftUI + AppKit). The engine is a small FastAPI 
 
 ## Install
 
-1. Download **Navo-<version>.dmg** from the [latest release](https://github.com/Devehab/STT-NAVO/releases/latest), open it and drag **Navo** into **Applications**.
-2. Open Navo from Applications. If macOS says it can't check Navo for malicious software, open **System Settings > Privacy & Security**, scroll down and click **Open Anyway** next to Navo, then confirm. You do this once. (A build signed with an Apple Developer ID and notarized opens with no warning at all, see [Make the download](#make-the-download).)
+1. Download [**Navo.dmg**](https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg), open it and drag **Navo** into **Applications**.
+2. Open Navo from Applications. Navo is not signed with a paid Apple developer account, so macOS says it could not verify it: click **Done**, open **System Settings > Privacy & Security**, scroll down and click **Open Anyway** next to Navo, then confirm with your password or Touch ID. You do this once. (In Terminal, `xattr -dr com.apple.quarantine /Applications/Navo.app` does the same.) (A build signed with an Apple Developer ID and notarized opens with no warning at all, see [Make the download](#make-the-download).)
 3. Navo opens its Settings. The **Setup** list at the top shows what Navo needs, step by step, and what is already on your Mac. Click **Install**: it downloads Python, MLX, the speech model for dictation and the small cleanup model (about 7 GB, one time), then works offline. No account is needed: without a Hugging Face token Navo installs **Audar**. For **Cohere** too, accept its terms at [huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026](https://huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026), create a **Read** token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens), paste it in Settings and click **Download** next to Cohere. **Whisper** and **Qwen3** are public like Audar: click **Download** next to them, no token needed.
 4. Optional, for summaries and rewrites: click **Download Gemma** in the Setup list (5.2 GB, no token). **Models on this Mac** in the same place lists all seven models with their size, what each is for, which one is required, and whether it is downloaded.
 5. Allow **Microphone** and **Accessibility** when Navo asks (Settings shows both).
@@ -156,6 +156,7 @@ cd engine && python -m pytest -q   # engine tests, no model needed
 
 bash scripts/demo.sh               # open Navo on made-up sample data, for screenshots and demos
 bash scripts/publish.sh            # commit and push to GitHub, and turn on the website
+bash scripts/release.sh            # build the DMG and upload it as a GitHub release
 ```
 
 `demo.sh` starts Navo with `--demo`: the history, the recordings and the clipboard come from a folder of sample data (`~/Library/Application Support/Navo/Demo`, filled again on every start), your own data is not shown or touched, and the clipboard is not read. Quit Navo and open it normally to go back.

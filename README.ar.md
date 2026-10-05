@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://devehab.github.io/STT-NAVO/#ar">الموقع</a> |
-  <a href="https://github.com/Devehab/STT-NAVO/releases/latest">تنزيل لنظام Mac</a> |
+  <a href="https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg">تنزيل لنظام Mac</a> |
   <a href="docs/API.md">الـ API المحلي</a>
 </p>
 
@@ -64,8 +64,8 @@ Navo لوحة مفاتيح صوتية مفتوحة المصدر لنظام macOS
 
 ## التثبيت
 
-1. نزّل ملف DMG من [آخر إصدار](https://github.com/Devehab/STT-NAVO/releases/latest)، افتحه، واسحب Navo إلى مجلد Applications.
-2. افتح Navo. إن قال macOS إنه لا يستطيع التحقق من التطبيق، افتح System Settings ثم Privacy & Security واضغط Open Anyway بجانب Navo. مرة واحدة فقط.
+1. نزّل ملف [Navo.dmg](https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg)، افتحه، واسحب Navo إلى مجلد Applications.
+2. افتح Navo. التطبيق غير موقّع بحساب مطوّر مدفوع من Apple، فسيقول macOS إنه لم يستطع التحقق منه: اضغط Done، ثم افتح System Settings ثم Privacy & Security، وانزل واضغط Open Anyway بجانب Navo وأكّد بكلمة المرور أو Touch ID. مرة واحدة فقط.
 3. في الإعدادات تعرض قائمة Setup كل خطوة. اضغط Install: ينزّل Python و MLX ونموذج صوت ونموذج الترتيب الصغير، نحو 7 غيغابايت ولمرة واحدة. دون Token يُثبَّت Audar.
 4. اختياري، لنموذج Cohere: وافق على شروط النموذج في Hugging Face، أنشئ Token من نوع Read من [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)، الصقه في الإعدادات واضغط Download بجانب Cohere.
 5. اختياري، للملخصات: اضغط Download Gemma في قائمة Setup (5.2 غيغابايت).
