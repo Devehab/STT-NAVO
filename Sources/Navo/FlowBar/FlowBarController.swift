@@ -35,6 +35,10 @@ final class FlowBarController {
     private var dragOffset = CGPoint.zero
     private var screenNumber: NSNumber?
     private var cancellables = Set<AnyCancellable>()
+    /// Brings the bubble back when "Hide for a while" runs out.
+    private var wakeTimer: Timer?
+    /// The words heard so far, beside the bar while you dictate.
+    private let caption = LiveCaptionController()
 
     init(dictation: DictationController, settings: AppSettings, openHub: @escaping (HubSection) -> Void) {
         self.dictation = dictation
@@ -73,6 +77,18 @@ final class FlowBarController {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.refresh() }
             .store(in: &cancellables)
+        dictation.$liveText
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] text in self?.updateCaption(text) }
+            .store(in: &cancellables)
+        settings.$flowBarHiddenUntil
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] until in
+                self?.scheduleWake(until)
+                // Published before the value is stored: look again on the next turn.
+                DispatchQueue.main.async { self?.refresh() }
+            }
+            .store(in: &cancellables)
         settings.$flowBarEdge
             .dropFirst()
             .receive(on: DispatchQueue.main)
@@ -105,7 +121,9 @@ final class FlowBarController {
             return .message(message, isError: true)
         case .idle:
             if isHovering || state.isDragging { return .menu }
-            return settings.flowBarAlwaysVisible ? .orb : .hidden
+            // Hidden (for a while or until dictation): it still appears while you dictate, and
+            // goes away again once the result has been shown.
+            return settings.flowBarShowsWhenIdle ? .orb : .hidden
         }
     }
 
@@ -124,6 +142,38 @@ final class FlowBarController {
             }
             startTimer()
         }
+        updateCaption()
+    }
+
+    /// Shown while recording and while the last part is being written, gone otherwise.
+    private func updateCaption(_ text: LiveText? = nil) {
+        let text = text ?? dictation.liveText
+        let showing: Bool
+        switch dictation.phase {
+        case .recording, .transcribing, .polishing: showing = true
+        default: showing = false
+        }
+        guard showing, panel.isVisible, state.visual != .hidden else {
+            caption.update(nil, bar: nil, edge: state.edge, screen: nil)
+            return
+        }
+        let origin = panel.frame.origin
+        let bar = FlowBarLayout.contentRect(state.visual, edge: state.edge).offsetBy(dx: origin.x, dy: origin.y)
+        caption.update(text, bar: bar, edge: state.edge, screen: panel.screen ?? targetScreen())
+    }
+
+    private func scheduleWake(_ until: Date?) {
+        wakeTimer?.invalidate()
+        wakeTimer = nil
+        guard let until, until > Date() else { return }
+        let timer = Timer(fire: until, interval: 0, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            MainActor.assumeIsolated {
+                self.settings.flowBarHiddenUntil = nil
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        wakeTimer = timer
     }
 
     // MARK: Mouse tracking

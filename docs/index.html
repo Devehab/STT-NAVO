@@ -1855,6 +1855,41 @@ pre .c {
   gap: 18px;
   flex-wrap: wrap;
 }
+
+/* What is new in this version */
+.news-band {
+  padding-block: clamp(36px, 6vw, 64px);
+}
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-block-end: 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.ver {
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--violet), var(--sky));
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+.more.news {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 860px) {
+  .more.news {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
+  .more.news {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 </style>
 </head>
 <body>
@@ -1948,6 +1983,24 @@ pre .c {
     </div>
   </section>
 
+  <section class="section news-band" id="new" aria-labelledby="new-title">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow"><span class="ver" dir="ltr">v<span data-version>0.13.0</span></span> <span data-i18n="new.date">October 2026</span></p>
+        <h2 id="new-title" data-i18n="new.title">What is new in this version</h2>
+      </div>
+      <div class="more news">
+        <article><svg class="ico" aria-hidden="true"><use href="#i-mic"/></svg><h4 data-i18n="n1.t">See the words while you talk</h4><p data-i18n="n1.p">A small card above the Flow Bar shows what you say as you say it. Long dictations are written as you go, so they are in almost as soon as you let go.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><h4 data-i18n="n2.t">Set up in three clicks</h4><p data-i18n="n2.p">A welcome screen walks you through it: download the engine, allow the microphone, allow Accessibility.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-key"/></svg><h4 data-i18n="n3.t">No account, no developer tools</h4><p data-i18n="n3.p">The first setup needs no Hugging Face token, and macOS no longer asks to install Xcode tools.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-term"/></svg><h4 data-i18n="n4.t">Install with one line</h4><p data-i18n="n4.p">Paste one line in Terminal and Navo downloads, installs and opens, with no warning from macOS.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-moon"/></svg><h4 data-i18n="n5.t">Hide the Flow Bar</h4><p data-i18n="n5.p">For 10 minutes up to 2 hours, or keep it out of sight and see it only while you dictate.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg><h4 data-i18n="n6.t">Free space in one click</h4><p data-i18n="n6.p">Delete any model you no longer use, with a confirmation that says how much space comes back.</p></article>
+      </div>
+      <p class="note-line"><span data-i18n="new.names">Record is now called Notetaker, and Files is now Transcribe.</span> <a href="https://github.com/Devehab/STT-NAVO/blob/main/CHANGELOG.md" data-i18n="new.all">All changes</a></p>
+    </div>
+  </section>
+
   <section class="section band" aria-labelledby="how-title">
     <div class="wrap">
       <div class="section-head">
@@ -1987,6 +2040,7 @@ pre .c {
             <h3 data-i18n="f1.t">It pastes the text for you</h3>
             <p data-i18n="f1.p">Let go of the key and the sentence is already in your email. Navo puts the text on the clipboard, presses <kbd>Command</kbd> <kbd>V</kbd> in the app you are in, then puts back whatever you had copied before. You never switch windows and you never paste.</p>
             <ul>
+              <li data-i18n="f1.live">You see the words in a small card while you talk, and a long dictation is written as you go, so it is in almost as soon as you let go.</li>
               <li data-i18n="f1.a">Works wherever a text field has focus: Mail, Slack, the browser, your code editor.</li>
               <li data-i18n="f1.b">First a small model on your Mac fixes the punctuation and drops the filler words. It never translates and never changes your dialect.</li>
               <li data-i18n="f1.c">No text field in focus? The text waits on the clipboard and Navo tells you. Password fields are never filled.</li>
@@ -2366,7 +2420,7 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 9 10 13.5 14.5 9M4 17h12"/></svg>
           <span data-i18n="dl.cta">Download Navo for Mac</span>
         </a>
-        <p class="meta"><span data-i18n="dl.meta.a">DMG file</span> | <span data-i18n="dl.meta.v">Version</span> <span dir="ltr" data-version>0.11.1</span> | <span data-i18n="dl.meta.b">macOS 14 or later</span> | <span dir="ltr">Apple Silicon</span></p>
+        <p class="meta"><span data-i18n="dl.meta.a">DMG file</span> | <span data-i18n="dl.meta.v">Version</span> <span dir="ltr" data-version>0.13.0</span> | <span data-i18n="dl.meta.b">macOS 14 or later</span> | <span dir="ltr">Apple Silicon</span></p>
         <div class="open-guide" id="quick">
           <h3><span class="rec-tag" data-i18n="q.tag">Easiest</span> <span data-i18n="q.title">Install with one line</span></h3>
           <p data-i18n="q.p">Open <b>Terminal</b> (press <kbd>Command</kbd> <kbd>Space</kbd>, type Terminal, press Return), paste this line and press Return:</p>
@@ -2409,7 +2463,7 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
 
   // The three things to set when the page goes online.
   var NAVO = {
-    version: "0.12.0",
+    version: "0.13.0",
     // Where the download buttons point: the hosted .dmg, for example a GitHub release file.
     // `bash scripts/release.sh` uploads Navo.dmg to a new release, and this link always gives the newest one.
     download: "https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg",
@@ -2440,6 +2494,22 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     "ph.write": "يكتب على جهازك",
     "ph.paste": "يلصق عنك",
 
+    "new.date": "أكتوبر 2026",
+    "new.title": "ما الجديد في هذا الإصدار",
+    "n1.t": "ترى كلامك وأنت تتكلم",
+    "n1.p": "بطاقة صغيرة فوق شريط Flow Bar تعرض ما تقوله لحظة قوله. والإملاء الطويل يُكتب أولاً بأول، فيصل تقريباً لحظة رفع إصبعك.",
+    "n2.t": "الإعداد بثلاث نقرات",
+    "n2.p": "شاشة ترحيب ترافقك خطوة خطوة: تنزيل المحرك، السماح بالميكروفون، السماح بـ Accessibility.",
+    "n3.t": "لا حساب ولا أدوات مطوّرين",
+    "n3.p": "الإعداد الأول لا يحتاج Token من Hugging Face، ولم يعد macOS يطلب تثبيت أدوات Xcode.",
+    "n4.t": "التثبيت بسطر واحد",
+    "n4.p": "الصق سطراً واحداً في Terminal، فيُنزَّل Navo ويُثبَّت ويفتح، دون أي تحذير من macOS.",
+    "n5.t": "إخفاء شريط Flow Bar",
+    "n5.p": "من 10 دقائق إلى ساعتين، أو أبقه مخفياً ليظهر فقط أثناء الإملاء.",
+    "n6.t": "وفّر المساحة بنقرة",
+    "n6.p": "احذف أي نموذج لم تعد تستخدمه، مع تأكيد يخبرك كم مساحة ستعود.",
+    "new.names": "تبويب Record أصبح اسمه Notetaker، و Files أصبح Transcribe.",
+    "new.all": "كل التغييرات",
     "how.title": "ثلاث حركات، في أي تطبيق",
     "how.1.t": "اضغط",
     "how.1.p": "اضغط مطولاً على <kbd>Right Option</kbd> في أي مكان تكتب فيه. يفتح شريط Flow Bar بموجة صوتية حيّة، فترى أن Navo يسمعك.",
@@ -2453,6 +2523,7 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
 
     "f1.t": "يلصق النص عنك",
     "f1.p": "ارفع إصبعك عن المفتاح، فتجد الجملة في بريدك. يضع Navo النص في الحافظة، ويضغط <kbd>Command</kbd> <kbd>V</kbd> في التطبيق الذي أنت فيه، ثم يعيد إلى الحافظة ما كنت قد نسخته قبل ذلك. لا تبدّل النوافذ، ولا تلصق بنفسك.",
+    "f1.live": "ترى كلامك في بطاقة صغيرة وأنت تتكلم، والإملاء الطويل يُكتب أولاً بأول، فيصل تقريباً لحظة رفع إصبعك.",
     "f1.a": "يعمل حيثما كان المؤشر في حقل نص: البريد، Slack، المتصفح، محرر الكود.",
     "f1.b": "قبل اللصق، يضبط نموذج صغير على جهازك علامات الترقيم ويحذف كلمات الحشو. لا يترجم أبداً ولا يغيّر لهجتك.",
     "f1.c": "لا يوجد حقل نص؟ يبقى النص في الحافظة ويخبرك Navo بذلك. وحقول كلمات المرور لا يُلصق فيها أبداً.",

@@ -12,7 +12,8 @@
   <a href="https://devehab.github.io/STT-NAVO/">Website</a> |
   <a href="https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg">Download for Mac</a> |
   <a href="#install">Install</a> |
-  <a href="docs/API.md">Local API</a>
+  <a href="docs/API.md">Local API</a> |
+  <a href="CHANGELOG.md">What is new</a>
 </p>
 
 <p align="center">
@@ -31,7 +32,7 @@ Navo is an open source voice keyboard for macOS in the spirit of Wispr Flow. Hol
 | **Pastes for you** | The text goes straight into the focused app, and your clipboard is put back the way it was |
 | **Arabic first** | Dialects, Modern Standard, and English terms inside Arabic sentences |
 | **Meetings** | Live transcript while the call goes on, then a summary with decisions and action items |
-| **Files** | Voice Memos, WhatsApp voice notes, MP3, M4A, WAV, FLAC, with search and a date filter |
+| **Transcribe** | Voice Memos, WhatsApp voice notes, MP3, M4A, WAV, FLAC, with search and a date filter |
 | **Clipboard history** | Control + Option + V opens your last copies in any app |
 | **Light on memory** | Models load when you talk and leave after the idle time you choose |
 | **Private** | No cloud, no account, no tracking. The engine listens on 127.0.0.1 only |
@@ -39,21 +40,22 @@ Navo is an open source voice keyboard for macOS in the spirit of Wispr Flow. Hol
 ## Features
 
 - **Push to talk anywhere**: hold Right ⌥ (configurable: Right ⌘, Right ⌃, fn), release to insert. Double-tap for hands-free, tap again to finish, Esc to cancel.
+- **See the words while you talk**: the text appears in a small card above the Flow Bar as you speak, the finished phrases bright and the one you are saying dimmer. Each phrase is transcribed when you pause, so a long dictation is in almost as soon as you let go. Short ones are still transcribed again in one go, so nothing is lost in accuracy. It can be turned off in Settings.
 - **Arabic first**: MSA, dialects and Arabic-English code-switching. Cleanup keeps your dialect and never translates.
 - **Switch the language in a second**: press Control + Option + L in any app (or record your own shortcut in Settings), use the switch on Home or the AR / EN button on the Flow Bar, even while you talk. Cohere takes Arabic or English; Audar, Whisper and Qwen3 also have Auto, where the model detects the language itself (Audar always picks up the Arabic dialect from the audio).
 - **Four speech engines, two on at a time**: Cohere Transcribe Arabic and Audar ASR V1 Turbo for Arabic dialects, Whisper Large v3 Turbo (100 languages, fast, 1.6 GB) and Qwen3-ASR 1.7B (30 languages) for English and other languages. Pick one for dictation and keep one more on for meetings, files or other apps through the API. Each model takes 1.6 to 4.7 GB while loaded, so a third can be turned on once one of the two is off.
 - **Compare engines**: run any recording or audio file through the two engines that are on and see both transcripts side by side, in the app or with one API call.
-- **Record tab, for meetings, with live text**: record a Google Meet, Zoom or any call with what your Mac plays, your microphone, or both. The text appears while the meeting goes on: every minute or so (30 seconds to 5 minutes, your choice) the newest piece is cut at a pause and transcribed by the engine you choose. Pause and resume; the audio is saved to disk in parts every 3 or 5 minutes, so a crash loses at most the last part, and becomes one recording when you stop.
+- **Notetaker, for meetings, with live text**: record a Google Meet, Zoom or any call with what your Mac plays, your microphone, or both. The text appears while the meeting goes on: every minute or so (30 seconds to 5 minutes, your choice) the newest piece is cut at a pause and transcribed by the engine you choose. Pause and resume; the audio is saved to disk in parts every 3 or 5 minutes, so a crash loses at most the last part, and becomes one recording when you stop.
 - **Cuts that never split a word**: long audio is only ever cut inside a real pause. Navo looks up to 10 seconds before and after each target point for a stretch where nobody speaks (at least 300 ms, measured against the background noise around it), prefers the longest and cleanest one, and cuts in its middle. Silent pieces are not sent at all, so the models cannot invent text for them. The engine uses the same method to fit pieces into each model.
-- **Find any recording**: Record and Files have a search field that looks in titles and in the text itself (Arabic without caring about diacritics or hamza forms), shows the line where the words were found, and a date filter: today, yesterday, the last 7 or 30 days, or one day picked from a calendar.
-- **Files tab, for audio from other devices**: Voice Memos recordings come in with Share > Navo, or ⌘C in Voice Memos and Paste in Navo, or Open With > Navo in Finder, or a drop. WAV, MP3, AAC, FLAC and WhatsApp voice notes (OGG, Opus) work too. The text appears piece by piece while the engine works through a long recording, with times if you want them, to copy or export. Files added while one is being transcribed wait their turn, so each finishes as fast as it can.
+- **Find any recording**: Notetaker and Transcribe have a search field that looks in titles and in the text itself (Arabic without caring about diacritics or hamza forms), shows the line where the words were found, and a date filter: today, yesterday, the last 7 or 30 days, or one day picked from a calendar.
+- **Transcribe, for audio from other devices**: Voice Memos recordings come in with Share > Navo, or ⌘C in Voice Memos and Paste in Navo, or Open With > Navo in Finder, or a drop. WAV, MP3, AAC, FLAC and WhatsApp voice notes (OGG, Opus) work too. The text appears piece by piece while the engine works through a long recording, with times if you want them, to copy or export. Files added while one is being transcribed wait their turn, so each finishes as fast as it can.
 - **Progress in the menu bar**: while a long recording or file is being transcribed, the Navo icon fills up like a pie with the percentage beside it; during a meeting it shows a red dot and the time. When everything is done it turns into a green check mark (orange if some of it could not be transcribed), so you can tell from across the room. The menu lists each transcription with how far it is; click one to open it.
 - **AI summaries and rewrites, on this Mac**: the AI button on any dictation, meeting or file makes a summary or a detailed summary (points, decisions, action items, names and numbers, in the text's language, English or Arabic), or rewrites it as a formal email, a friendly email, a casual text message or a clean rewrite, in English (natural American) or Arabic (Modern Standard for emails, everyday Levantine for messages and rewrites), whatever language the text is in. An open language model on your Mac writes it, Gemma 4 E4B or Llama 3.1 8B, and you watch the answer appear as it is written. No account, no API key, no internet: the text never leaves the Mac. A long meeting is read in parts, so even an hour of talk fits.
 - **Light on memory, by design**: a language model and a speech model are never loaded together. Ask for a summary and the speech models step out, the language model loads, writes, and leaves when you close the panel; the speech model is back the next time you dictate. A recording that is running keeps recording, and its live text waits for the summary to finish. Each language model stays under 6 GB, so it all works on a 16 GB Mac with other apps open.
 - **Quick paste, like Spotlight**: press Control + Option + V in any app (or your own shortcut) and a small panel opens in the middle of the screen with your last 10 copies and a preview of each. Type to search everything kept, then Return, a click or ⌘1 to ⌘0 pastes it where you were working; ⌘Return only copies it. The app you work in keeps its focus the whole time.
 - **Clipboard tab**: the text you copy in any app, kept on your Mac so you can find it and copy it again. Search, star what you want to keep forever, and choose how long the rest stays (1 day to 2 months). Password managers' copies are never kept, and it can be turned off in Settings.
 - **Memory only while it works**: models load when you start talking and leave memory after 10 idle minutes (configurable), so the engine sleeps at a few dozen MB instead of several GB.
-- **Flow Bar**: a tiny bubble on the edge of the screen. Bring the pointer close and it opens (Speak, language, History, Settings). While you talk it shows a live waveform, a timer and the language. Drag it to the bottom, left or right edge of any display.
+- **Flow Bar**: a tiny bubble on the edge of the screen. Hide it for 10 minutes to 2 hours, or show it only while you dictate (Settings, or the menu bar). Bring the pointer close and it opens (Speak, language, History, Settings). While you talk it shows a live waveform, a timer and the language. Drag it to the bottom, left or right edge of any display.
 - **Hub**: every dictation saved in SQLite, grouped by day, with search (diacritic and hamza insensitive for Arabic), copy, edit, play the recording, show the original transcript, re-transcribe, delete, plus stats (total words, wpm, streak, minutes saved).
 - **Dictionary**: names and terms that guide the cleanup model, plus exact replacements.
 - **Never loses a dictation**: if transcription fails the audio stays in History with a Retry button; if cleanup fails the raw transcript is inserted.
@@ -102,7 +104,7 @@ Either way, Navo opens on a welcome screen with three steps:
 
 Then click into any text field, hold **Right ⌥**, talk, and let go.
 
-More models are one click away in Settings: **Whisper** and **Qwen3** for speech, **Gemma** or **Llama** for summaries (5.2 and 4.5 GB). Only **Cohere** needs an account: accept its terms at [huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026](https://huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026), create a **Read** token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens), paste it in Settings and click **Download** next to Cohere. **Models on this Mac** in Settings lists all seven models with their size and whether each is downloaded.
+More models are one click away in Settings: **Whisper** and **Qwen3** for speech, **Gemma** or **Llama** for summaries (5.2 and 4.5 GB). Only **Cohere** needs an account: accept its terms at [huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026](https://huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026), create a **Read** token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens), paste it in Settings and click **Download** next to Cohere. **Models on this Mac** in Settings lists all seven models with their size and whether each is downloaded, and deletes the ones you no longer use (for good, with a confirmation) to free the space.
 
 To update, run the line again, or drag the new version into Applications and replace the old one. Your history, recordings and models stay. If the new version is signed differently, macOS asks for Accessibility and Microphone once more.
 
@@ -173,6 +175,7 @@ cd engine && python -m pytest -q   # engine tests, no model needed
 bash scripts/demo.sh               # open Navo on made-up sample data, for screenshots and demos
 bash scripts/publish.sh            # commit and push to GitHub, and turn on the website
 bash scripts/release.sh            # build the DMG and upload it as a GitHub release
+bash scripts/ship.sh               # all of it for a new version: build, push, DMG and release
 ```
 
 `demo.sh` starts Navo with `--demo`: the history, the recordings and the clipboard come from a folder of sample data (`~/Library/Application Support/Navo/Demo`, filled again on every start), your own data is not shown or touched, and the clipboard is not read. Quit Navo and open it normally to go back.
@@ -199,7 +202,7 @@ Sources/Navo/
               (install, download, launch, engines on and off), HTTP clients, CleanupService
   AI/         AIWriter (summaries and rewrites with the local language models), the prompts, long texts in parts
   FlowBar/    Floating edge bubble: panel, layout, SwiftUI views
-  Hub/        Main window: Home (stats, history), Record, Files, Clipboard, Dictionary, Settings (with the
+  Hub/        Main window: Home (stats, history), Notetaker, Transcribe, Clipboard, Dictionary, Settings (with the
               Setup list and the models table), Compare engines, the AI panel
   Sessions/   Meeting recorder (parts on disk, mixing, live pieces), SmartCut and PieceCutter (cuts at pauses),
               audio decoding, pasted and dropped audio, SessionStore (transcription jobs), SessionFilter
@@ -217,7 +220,7 @@ scripts/      build-app.sh, run.sh, package.sh (the DMG download), demo.sh (samp
 
 ## Data and privacy
 
-Everything lives in `~/Library/Application Support/Navo`: `navo.sqlite` (history, dictionary, meetings and files, clipboard history), `Audio/` (dictation recordings), `Sessions/` (meetings and imported files), `Inbox/` (audio from the Share menu, moved into Files right away), `engine/` (Python environment), `Logs/engine.log`. Models are in the Hugging Face cache (`~/.cache/huggingface`). The engine listens on 127.0.0.1 only and loads models with `HF_HUB_OFFLINE=1`.
+Everything lives in `~/Library/Application Support/Navo`: `navo.sqlite` (history, dictionary, meetings and files, clipboard history), `Audio/` (dictation recordings), `Sessions/` (meetings and imported files), `Inbox/` (audio from the Share menu, moved into Transcribe right away), `engine/` (Python environment), `Logs/engine.log`. Models are in the Hugging Face cache (`~/.cache/huggingface`). The engine listens on 127.0.0.1 only and loads models with `HF_HUB_OFFLINE=1`.
 
 - **Recordings** are kept as WAV files by default so you can replay or re-transcribe them. Turn off *Keep recordings* and each one is erased right after transcription, or set *Keep recordings for* to a number of days.
 - **Deleting is permanent.** Recordings are removed from disk (not moved to the Trash). The database runs with `secure_delete`, so deleted text is overwritten, and it is compacted after every deletion.
@@ -254,10 +257,10 @@ lsof -nP -iTCP -sTCP:LISTEN | grep 7861
 | Audar says Not downloaded | Settings > Speech engines > Download next to Audar. No token is needed. |
 | The Mac feels slow with two engines on | Lower *Free memory when idle*, or turn off the engine you do not use for dictation, in Settings > Speech engines. |
 | An engine's switch is greyed out | Two engines are on already, and that is the most at once. Turn one of them off, then turn this one on. |
-| Record shows no sound from the Mac | System Settings > Privacy & Security > Screen & System Audio Recording > System Audio Recording Only: allow Navo, then start the recording again. Needs macOS 14.4 or later. |
+| Notetaker shows no sound from the Mac | System Settings > Privacy & Security > Screen & System Audio Recording > System Audio Recording Only: allow Navo, then start the recording again. Needs macOS 14.4 or later. |
 | The first dictation after a pause is slower | The models were asleep and loaded again. Raise *Free memory when idle*, or set it to Never. |
 | Navo is not in the Share menu | Run `./scripts/run.sh` once (it registers the extension), then System Settings > General > Login Items & Extensions > Sharing (on macOS 14: Privacy & Security > Extensions > Sharing): turn Navo on. In the Share menu, Edit Extensions shows it too. |
-| Paste says there is no audio | The message lists what the clipboard holds. Use Share > Navo in Voice Memos instead, or drag the recording to Finder and then onto Files. |
+| Paste says there is no audio | The message lists what the clipboard holds. Use Share > Navo in Voice Memos instead, or drag the recording to Finder and then onto Transcribe. |
 | English comes out in Arabic letters | Switch the language to English (Control + Option + L, the switch on Home, or the AR / EN button), or use Auto. For English, Whisper or Qwen3 usually does best. |
 | The language shortcut does nothing | Settings > Language says when another app already uses it. Click the shortcut there and press a new one. |
 

@@ -15,8 +15,8 @@ enum HubSection: String, CaseIterable, Identifiable, Hashable {
     var title: String {
         switch self {
         case .home: return "Home"
-        case .record: return "Record"
-        case .files: return "Files"
+        case .record: return "Notetaker"
+        case .files: return "Transcribe"
         case .clipboard: return "Clipboard"
         case .dictionary: return "Dictionary"
         case .settings: return "Settings"

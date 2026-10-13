@@ -16,7 +16,7 @@ struct FilesView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Files")
+                    Text("Transcribe")
                         .font(.system(size: 28, weight: .semibold))
                     Text("Voice Memos and other audio, turned into text on this Mac.")
                         .foregroundStyle(.secondary)

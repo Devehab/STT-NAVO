@@ -278,7 +278,9 @@ private struct ModelsTable: View {
                     required: speech == settings.dictationEngine,
                     gb: speech.downloadGB,
                     downloaded: engine.isDownloaded(speech),
-                    downloading: engine.downloading == speech
+                    downloading: engine.downloading == speech,
+                    deletable: .speech(speech),
+                    afterDelete: "Navo turns this engine off. Your dictations, recordings and their text are kept."
                 ) {
                     engine.download(speech, huggingFaceToken: token)
                 }
@@ -291,7 +293,9 @@ private struct ModelsTable: View {
                 required: false,
                 gb: Self.cleanupGB,
                 downloaded: engine.cleanupModelDownloaded,
-                downloading: engine.downloadingCleanup
+                downloading: engine.downloadingCleanup,
+                deletable: .cleanup,
+                afterDelete: "Dictation keeps working, with a lighter cleanup that does not use a model."
             ) {
                 engine.downloadCleanupModel()
             }
@@ -304,7 +308,9 @@ private struct ModelsTable: View {
                     required: false,
                     gb: model.downloadGB,
                     downloaded: engine.isDownloaded(model),
-                    downloading: engine.downloadingModel == model
+                    downloading: engine.downloadingModel == model,
+                    deletable: .writing(model),
+                    afterDelete: "AI writing uses the other language model if it is on this Mac, or offers to download one."
                 ) {
                     engine.download(model)
                 }
@@ -346,9 +352,13 @@ private struct ModelLine: View {
     let gb: Double
     let downloaded: Bool
     let downloading: Bool
+    let deletable: LocalEngineManager.DeletableModel
+    /// What changes once it is gone, for the confirmation.
+    let afterDelete: String
     let download: () -> Void
 
     @EnvironmentObject private var engine: LocalEngineManager
+    @State private var confirmDelete = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -368,9 +378,22 @@ private struct ModelLine: View {
             Group {
                 if downloading {
                     ProgressView(value: engine.installProgress)
+                } else if engine.deleting == deletable {
+                    ProgressView()
+                        .controlSize(.small)
                 } else if downloaded {
-                    Text("Downloaded")
-                        .foregroundStyle(.green)
+                    HStack(spacing: 6) {
+                        Text("Downloaded")
+                            .foregroundStyle(.green)
+                        Button {
+                            confirmDelete = true
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(engine.deleteBlocker(deletable) != nil)
+                        .help(engine.deleteBlocker(deletable) ?? "Delete it from this Mac to free \(SetupSection.gb(gb))")
+                    }
                 } else {
                     Button("Download", action: download)
                         .disabled(engine.isBusy || !engine.isInstalled)
@@ -378,8 +401,16 @@ private struct ModelLine: View {
                 }
             }
             .font(.callout)
-            .frame(width: 104, alignment: .trailing)
+            .frame(width: 128, alignment: .trailing)
         }
         .padding(.vertical, 5)
+        .confirmationDialog("Delete \(name) from this Mac?", isPresented: $confirmDelete) {
+            Button("Delete permanently, free \(SetupSection.gb(gb))", role: .destructive) {
+                engine.delete(deletable)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Its \(SetupSection.gb(gb)) are erased from disk for good, not moved to the Trash. \(afterDelete) You can download it again from here at any time.")
+        }
     }
 }

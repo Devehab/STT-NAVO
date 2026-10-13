@@ -200,6 +200,8 @@ final class LocalEngineManager: ObservableObject {
     /// The small cleanup model is being downloaded.
     @Published private(set) var downloadingCleanup = false
     @Published private(set) var cleanupDownloadError: String?
+    /// The model being erased from this Mac right now, if any.
+    @Published private(set) var deleting: DeletableModel?
     @Published private(set) var llmAvailable = false
     @Published private(set) var llmLoaded: String?
     @Published private(set) var details: Details?
@@ -932,6 +934,82 @@ final class LocalEngineManager: ObservableObject {
             settings.setEnabled(.audar, true)
         }
         installLog.append("No Hugging Face token: installing Audar, which needs none. To add Cohere later, paste a token in Settings and click Download next to it.")
+    }
+
+    // MARK: Deleting models
+
+    /// A downloaded model that can be erased to free disk space.
+    enum DeletableModel: Hashable {
+        case speech(SpeechEngine)
+        case cleanup
+        case writing(WritingModel)
+    }
+
+    /// Why a model cannot be deleted now, or nil when it can.
+    func deleteBlocker(_ model: DeletableModel) -> String? {
+        if installer != nil || deleting != nil { return "Wait until the download or deletion that is running finishes." }
+        if case .speech(let speech) = model, speech == settings.dictationEngine {
+            return "It is the engine for dictation. Choose another one for dictation first."
+        }
+        if repository(of: model).hasPrefix("/") || repository(of: model).hasPrefix("~") {
+            return "It is a folder you chose on this Mac, not a download: remove it in Finder."
+        }
+        return nil
+    }
+
+    private func repository(of model: DeletableModel) -> String {
+        switch model {
+        case .speech(let speech): return settings.model(for: speech)
+        case .cleanup: return settings.localLLMModel
+        case .writing(let writing): return settings.model(for: writing)
+        }
+    }
+
+    /// Takes the model out of memory, then erases its files from the Hugging Face cache for good
+    /// (they do not go to the Trash). It can be downloaded again at any time.
+    func delete(_ model: DeletableModel) {
+        guard deleteBlocker(model) == nil else { return }
+        deleting = model
+        let repo = repository(of: model)
+        let hub = Self.huggingFaceHome.appendingPathComponent("hub", isDirectory: true)
+        let folder = "models--" + repo.replacingOccurrences(of: "/", with: "--")
+        let targets = [hub.appendingPathComponent(folder), hub.appendingPathComponent(".locks").appendingPathComponent(folder)]
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if self.isRunning {
+                switch model {
+                case .speech(let speech):
+                    if self.settings.jobEngine == speech {
+                        self.settings.jobEngine = self.settings.dictationEngine
+                    }
+                    if self.settings.isEnabled(speech) {
+                        self.settings.setEnabled(speech, false)
+                    }
+                    await self.control("disable", speech)
+                case .cleanup:
+                    await self.post("v1/sleep/now", timeout: 30)
+                case .writing:
+                    await self.post("v1/llms/unload", timeout: 60)
+                }
+            } else if case .speech(let speech) = model {
+                if self.settings.jobEngine == speech { self.settings.jobEngine = self.settings.dictationEngine }
+                if self.settings.isEnabled(speech) { self.settings.setEnabled(speech, false) }
+            }
+            let problem = await Task.detached(priority: .utility) { () -> String? in
+                let fm = FileManager.default
+                for target in targets where fm.fileExists(atPath: target.path) {
+                    do {
+                        try fm.removeItem(at: target)
+                    } catch {
+                        return error.localizedDescription
+                    }
+                }
+                return nil
+            }.value
+            self.deleting = nil
+            self.installStatus = problem.map { "Could not delete: \($0)" } ?? "Deleted"
+            await self.refresh()
+        }
     }
 
     /// The Hugging Face cache, where models are downloaded.

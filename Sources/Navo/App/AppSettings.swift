@@ -158,6 +158,8 @@ final class AppSettings: ObservableObject {
         static let keepAudio = "keepAudio"
         static let playSounds = "playSounds"
         static let flowBarAlwaysVisible = "flowBarAlwaysVisible"
+        static let flowBarHiddenUntil = "flowBarHiddenUntil"
+        static let liveDictation = "liveDictation"
         static let flowBarEdge = "flowBarEdge"
         static let flowBarPosition = "flowBarPosition"
         static let hasOnboarded = "hasOnboarded"
@@ -212,6 +214,20 @@ final class AppSettings: ObservableObject {
     @Published var keepAudio: Bool { didSet { defaults.set(keepAudio, forKey: Key.keepAudio) } }
     @Published var playSounds: Bool { didSet { defaults.set(playSounds, forKey: Key.playSounds) } }
     @Published var flowBarAlwaysVisible: Bool { didSet { defaults.set(flowBarAlwaysVisible, forKey: Key.flowBarAlwaysVisible) } }
+    /// Set by "Hide for a while": the Flow Bar stays out of sight until then, except while you dictate.
+    @Published var flowBarHiddenUntil: Date? {
+        didSet { defaults.set(flowBarHiddenUntil?.timeIntervalSince1970 ?? 0, forKey: Key.flowBarHiddenUntil) }
+    }
+
+    /// Transcribe while you talk and show the text above the Flow Bar.
+    @Published var liveDictation: Bool { didSet { defaults.set(liveDictation, forKey: Key.liveDictation) } }
+
+    /// Whether the Flow Bar shows its bubble when you are not dictating.
+    var flowBarShowsWhenIdle: Bool {
+        guard flowBarAlwaysVisible else { return false }
+        guard let until = flowBarHiddenUntil else { return true }
+        return until <= Date()
+    }
     @Published var flowBarEdge: FlowBarEdge { didSet { defaults.set(flowBarEdge.rawValue, forKey: Key.flowBarEdge) } }
     @Published var flowBarPosition: Double { didSet { defaults.set(flowBarPosition, forKey: Key.flowBarPosition) } }
     @Published var hasOnboarded: Bool { didSet { defaults.set(hasOnboarded, forKey: Key.hasOnboarded) } }
@@ -302,6 +318,7 @@ final class AppSettings: ObservableObject {
             Key.keepAudio: true,
             Key.playSounds: true,
             Key.flowBarAlwaysVisible: true,
+            Key.liveDictation: true,
             Key.flowBarEdge: FlowBarEdge.bottom.rawValue,
             Key.flowBarPosition: 0.5,
             Key.hasOnboarded: false,
@@ -340,6 +357,9 @@ final class AppSettings: ObservableObject {
         keepAudio = defaults.bool(forKey: Key.keepAudio)
         playSounds = defaults.bool(forKey: Key.playSounds)
         flowBarAlwaysVisible = defaults.bool(forKey: Key.flowBarAlwaysVisible)
+        liveDictation = defaults.bool(forKey: Key.liveDictation)
+        let hiddenUntil = defaults.double(forKey: Key.flowBarHiddenUntil)
+        flowBarHiddenUntil = hiddenUntil > Date().timeIntervalSince1970 ? Date(timeIntervalSince1970: hiddenUntil) : nil
         flowBarEdge = FlowBarEdge(rawValue: defaults.string(forKey: Key.flowBarEdge) ?? "") ?? .bottom
         flowBarPosition = defaults.double(forKey: Key.flowBarPosition)
         hasOnboarded = defaults.bool(forKey: Key.hasOnboarded)

@@ -34,16 +34,26 @@ enum SmartCut {
 
     /// Sample index in lo...hi where `samples` should be cut, as close to `target` as a pause allows.
     static func findCut(in samples: [Float], lo: Int, hi: Int, target: Int) -> Int {
+        scan(samples, lo: lo, hi: hi, target: target, tiers: pauseTiers, fallBack: true) ?? target
+    }
+
+    /// Like `findCut`, but only inside a real pause of at least `minimumSeconds`: nil when there is
+    /// none, never a cut through speech. Live dictation uses it to send each phrase as it ends.
+    static func findPause(in samples: [Float], lo: Int, hi: Int, target: Int, minimumSeconds: Double) -> Int? {
+        scan(samples, lo: lo, hi: hi, target: target, tiers: [minimumSeconds], fallBack: false)
+    }
+
+    private static func scan(_ samples: [Float], lo: Int, hi: Int, target: Int, tiers: [Double], fallBack: Bool) -> Int? {
         let total = samples.count
         let lo = max(0, min(lo, total))
         let hi = max(lo, min(hi, total))
         let target = min(max(target, lo), hi)
-        guard hi - lo >= 2 * frame else { return target }
+        guard hi - lo >= 2 * frame else { return fallBack ? target : nil }
 
         let start = max(0, lo - context)
         let end = min(total, hi + lookahead)
         let levels = smooth(frameLevels(samples, from: start, to: end))
-        guard !levels.isEmpty else { return target }
+        guard !levels.isEmpty else { return fallBack ? target : nil }
         let delta = contrast(levels)
         let floor = localFloor(levels)
         let count = levels.count
@@ -90,7 +100,7 @@ enum SmartCut {
             runs.append(Run(seconds: seconds, cut: cut, score: score))
         }
 
-        for shortest in pauseTiers {
+        for shortest in tiers {
             var best: Run?
             for run in runs where run.seconds >= shortest {
                 if best == nil || run.score > best!.score {
@@ -99,7 +109,7 @@ enum SmartCut {
             }
             if let best { return best.cut }
         }
-        return quietestPoint(levels, start: start, lo: lo, hi: hi, target: target)
+        return fallBack ? quietestPoint(levels, start: start, lo: lo, hi: hi, target: target) : nil
     }
 
     /// True when not even 100 ms of the audio is loud enough to hold speech.

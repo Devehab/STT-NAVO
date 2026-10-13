@@ -10,7 +10,7 @@ struct RecordView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Record")
+                Text("Notetaker")
                     .font(.system(size: 28, weight: .semibold))
                 Text("Meetings on Google Meet, Zoom or any app, turned into text while they go on.")
                     .foregroundStyle(.secondary)

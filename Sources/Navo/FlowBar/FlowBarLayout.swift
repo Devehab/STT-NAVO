@@ -122,3 +122,26 @@ final class FlowBarPanel: NSPanel {
 final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
+
+/// How long "Hide for" keeps the Flow Bar out of sight.
+enum FlowBarPause: Int, CaseIterable, Identifiable {
+    case tenMinutes = 10
+    case halfHour = 30
+    case hour = 60
+    case twoHours = 120
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .tenMinutes: return "10 minutes"
+        case .halfHour: return "30 minutes"
+        case .hour: return "1 hour"
+        case .twoHours: return "2 hours"
+        }
+    }
+
+    func until(from now: Date = Date()) -> Date {
+        now.addingTimeInterval(TimeInterval(rawValue * 60))
+    }
+}

@@ -30,6 +30,8 @@ final class DictationController: ObservableObject {
     @Published private(set) var phase: DictationPhase = .idle
     @Published private(set) var recordingStartedAt: Date?
     @Published private(set) var levels: [Float] = Array(repeating: 0, count: 20)
+    /// The text heard so far while you talk (live dictation), shown above the Flow Bar.
+    @Published private(set) var liveText = LiveText()
 
     /// Asks the app to show the Hub on a section (used when permissions or the engine are missing).
     var onNeedsSetup: (() -> Void)?
@@ -54,6 +56,7 @@ final class DictationController: ObservableObject {
     private var resetTask: Task<Void, Never>?
     private var limitTask: Task<Void, Never>?
     private var targetApp: NSRunningApplication?
+    private var live: LiveDictation?
     private var cancellables = Set<AnyCancellable>()
 
     init(settings: AppSettings, engine: LocalEngineManager, store: HistoryStore) {
@@ -255,6 +258,7 @@ final class DictationController: ObservableObject {
         levels = Array(repeating: 0, count: levels.count)
         recordingStartedAt = Date()
         phase = .recording(handsFree: handsFree)
+        startLive()
         if settings.playSounds { Sounds.play(.start) }
         // Sleeping models start loading now, while the user is still talking.
         engine.wake(cleanup: settings.cleanupMode == .local)
@@ -273,6 +277,7 @@ final class DictationController: ObservableObject {
         pendingTap?.cancel()
         pendingTap = nil
         _ = recorder.stop()
+        endLive()
         recordingStartedAt = nil
         if silently {
             phase = .idle
@@ -289,14 +294,19 @@ final class DictationController: ObservableObject {
         pendingTap = nil
         let startedAt = recordingStartedAt ?? Date()
         let recording = recorder.stop()
+        let live = self.live
+        self.live = nil
+        live?.cancel()
         recordingStartedAt = nil
         if settings.playSounds { Sounds.play(.stop) }
 
         guard recording.duration >= 0.4 else {
+            liveText = LiveText()
             phase = .idle
             return
         }
         guard recording.peakRMS >= Self.minimumSpeechRMS else {
+            liveText = LiveText()
             show(.failed("No speech detected. Check your microphone."))
             return
         }
@@ -329,7 +339,9 @@ final class DictationController: ObservableObject {
         )
         phase = .transcribing
         Task { @MainActor [weak self] in
-            await self?.process(draft, insertIntoApp: true)
+            // Most of a long dictation was transcribed while it was spoken: only the end is left.
+            let early = await live?.finish(samples: recording.samples)
+            await self?.process(draft, insertIntoApp: true, transcript: early)
         }
     }
 
@@ -347,7 +359,8 @@ final class DictationController: ObservableObject {
 
     // MARK: Pipeline
 
-    private func process(_ draft: Dictation, insertIntoApp: Bool) async {
+    private func process(_ draft: Dictation, insertIntoApp: Bool, transcript early: TranscriptionClient.Result? = nil) async {
+        defer { liveText = LiveText() }
         var item = draft
         let started = Date()
         guard let audioPath = item.audioPath else {
@@ -363,8 +376,13 @@ final class DictationController: ObservableObject {
 
         let speech = settings.dictationEngine
         do {
-            let result = try await TranscriptionClient(baseURL: engine.baseURL(for: speech))
-                .transcribe(fileURL: audioURL, language: settings.language.rawValue)
+            let result: TranscriptionClient.Result
+            if let early, !early.text.isEmpty {
+                result = early
+            } else {
+                result = try await TranscriptionClient(baseURL: engine.baseURL(for: speech))
+                    .transcribe(fileURL: audioURL, language: settings.language.rawValue)
+            }
             guard !result.text.isEmpty else {
                 if insertIntoApp { try? FileManager.default.removeItem(at: audioURL) }
                 show(.failed("No speech detected"))
@@ -426,6 +444,33 @@ final class DictationController: ObservableObject {
         case .off:
             return CleanupConfig(mode: .off, baseURL: nil, model: "")
         }
+    }
+
+    // MARK: Live dictation
+
+    private func startLive() {
+        live?.cancel()
+        live = nil
+        liveText = LiveText()
+        guard settings.liveDictation else { return }
+        let session = LiveDictation(recorder: recorder) { [weak self] url in
+            guard let self else { throw CancellationError() }
+            let speech = self.settings.dictationEngine
+            return try await TranscriptionClient(baseURL: self.engine.baseURL(for: speech))
+                .transcribe(fileURL: url, language: self.settings.language.rawValue)
+        }
+        session.onChange = { [weak self, weak session] text in
+            guard let self, let session, self.live === session else { return }
+            self.liveText = text
+        }
+        live = session
+        session.start()
+    }
+
+    private func endLive() {
+        live?.cancel()
+        live = nil
+        liveText = LiveText()
     }
 
     // MARK: Helpers

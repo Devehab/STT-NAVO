@@ -48,6 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var recordItem: NSMenuItem!
     private var languageItem: NSMenuItem!
     private var quickPasteItem: NSMenuItem!
+    private var flowBarItem: NSMenuItem!
+    private let flowBarMenu = NSMenu()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         settings = AppSettings.shared
@@ -285,6 +287,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Clipboard", #selector(openClipboard), ""))
         menu.addItem(item("Dictionary", #selector(openDictionary), ""))
         menu.addItem(item("Settings…", #selector(openSettings), ","))
+        flowBarItem = NSMenuItem(title: "Hide Flow Bar", action: nil, keyEquivalent: "")
+        flowBarItem.submenu = flowBarMenu
+        menu.addItem(flowBarItem)
         menu.addItem(.separator())
         engineItem.isEnabled = false
         menu.addItem(engineItem)
@@ -330,6 +335,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 submenu.addItem(hint)
             }
         }
+        updateFlowBarItem()
         switch sessions.recorder.phase {
         case .recording, .paused:
             recordItem.title = "Stop Meeting Recording (\(SessionStore.clock(sessions.recorder.elapsed)))"
@@ -339,6 +345,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             recordItem.title = "Record a Meeting…"
         }
         recordItem.isEnabled = sessions.recorder.phase != .finishing
+    }
+
+    /// "Hide Flow Bar" with its lengths, or "Show Flow Bar" while it is hidden.
+    private func updateFlowBarItem() {
+        let submenu = flowBarMenu
+        submenu.removeAllItems()
+        if settings.flowBarShowsWhenIdle {
+            flowBarItem.title = "Hide Flow Bar"
+            flowBarItem.action = nil
+            flowBarItem.submenu = submenu
+            for pause in FlowBarPause.allCases {
+                let entry = item("For \(pause.title)", #selector(hideFlowBar(_:)), "")
+                entry.representedObject = pause.rawValue
+                submenu.addItem(entry)
+            }
+            submenu.addItem(.separator())
+            submenu.addItem(item("Until I Show It Again (shows while dictating)", #selector(hideFlowBarForGood), ""))
+        } else {
+            let until = settings.flowBarAlwaysVisible ? settings.flowBarHiddenUntil : nil
+            flowBarItem.title = until.map { "Show Flow Bar (hidden until \($0.formatted(date: .omitted, time: .shortened)))" } ?? "Show Flow Bar"
+            flowBarItem.submenu = nil
+            flowBarItem.target = self
+            flowBarItem.action = #selector(showFlowBar)
+        }
+    }
+
+    @objc private func hideFlowBar(_ sender: NSMenuItem) {
+        guard let minutes = sender.representedObject as? Int, let pause = FlowBarPause(rawValue: minutes) else { return }
+        settings.flowBarHiddenUntil = pause.until()
+    }
+
+    @objc private func hideFlowBarForGood() {
+        settings.flowBarHiddenUntil = nil
+        settings.flowBarAlwaysVisible = false
+    }
+
+    @objc private func showFlowBar() {
+        settings.flowBarHiddenUntil = nil
+        settings.flowBarAlwaysVisible = true
     }
 
     func menuWillOpen(_ menu: NSMenu) {

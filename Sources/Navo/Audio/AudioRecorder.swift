@@ -47,6 +47,21 @@ final class AudioRecorder {
 
     var isRecording: Bool { engine != nil }
 
+    /// Samples captured so far in this recording (any thread).
+    var sampleCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return samples.count
+    }
+
+    /// A copy of the samples captured so far from `start` on, while recording (any thread).
+    func samples(from start: Int) -> [Float] {
+        lock.lock()
+        defer { lock.unlock() }
+        guard start < samples.count else { return [] }
+        return Array(samples[max(0, start)...])
+    }
+
     func start() throws {
         guard engine == nil else { return }
         // A fresh engine per session follows changes of the default input device.

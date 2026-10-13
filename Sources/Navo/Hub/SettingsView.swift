@@ -120,6 +120,7 @@ struct SettingsView: View {
                 }
             }
             Toggle("Play sounds when recording starts and stops", isOn: $settings.playSounds)
+            Toggle("Show the text while you talk", isOn: $settings.liveDictation)
         } header: {
             Text("Dictation")
         } footer: {
@@ -170,6 +171,13 @@ struct SettingsView: View {
     }
 
     private var shortcutFooter: String {
+        let live = settings.liveDictation
+            ? " While you talk, the text appears above the Flow Bar and long dictations are written as you go, so they are in almost as soon as you let go."
+            : ""
+        return keyFooter + live
+    }
+
+    private var keyFooter: String {
         switch settings.pushToTalkKey {
         case .off:
             return "Use the Flow Bar or the menu bar icon to start dictating."
@@ -338,7 +346,30 @@ struct SettingsView: View {
 
     private var flowBarSection: some View {
         Section {
-            Toggle("Always show the Flow Bar", isOn: $settings.flowBarAlwaysVisible)
+            Picker("Show the Flow Bar", selection: $settings.flowBarAlwaysVisible) {
+                Text("Always").tag(true)
+                Text("Only while you dictate").tag(false)
+            }
+            if settings.flowBarAlwaysVisible {
+                if let until = settings.flowBarHiddenUntil, until > Date() {
+                    HStack {
+                        Text("Hidden until \(until.formatted(date: .omitted, time: .shortened))")
+                        Spacer()
+                        Button("Show now") { settings.flowBarHiddenUntil = nil }
+                    }
+                } else {
+                    HStack {
+                        Text("Hide it for a while")
+                        Spacer()
+                        Menu("Hide for") {
+                            ForEach(FlowBarPause.allCases) { pause in
+                                Button(pause.title) { settings.flowBarHiddenUntil = pause.until() }
+                            }
+                        }
+                        .fixedSize()
+                    }
+                }
+            }
             Picker("Position", selection: $settings.flowBarEdge) {
                 ForEach(FlowBarEdge.allCases) { edge in
                     Text(edge.title).tag(edge)
@@ -347,7 +378,7 @@ struct SettingsView: View {
         } header: {
             Text("Flow Bar")
         } footer: {
-            Text("Move the pointer close to the bubble to open it. Drag its handle to the bottom, left or right edge of any screen.")
+            Text("Move the pointer close to the bubble to open it. Drag its handle to the bottom, left or right edge of any screen. When it is hidden it still appears while you dictate, and hides again when the text is in.")
                 .foregroundStyle(.secondary)
         }
     }
@@ -391,7 +422,7 @@ struct SettingsView: View {
         } header: {
             Text("AI writing, on this Mac")
         } footer: {
-            Text("The AI button in Home, Record and Files summarizes a text or rewrites it as an email, a text message or a clean rewrite, in English or Arabic whatever the text is in. An open language model on this Mac writes it: the text never leaves the Mac, and it works with no internet.\n\nMemory: a language model and a speech model are never loaded together. When you ask for a summary the speech models step out of memory, the language model loads, writes and leaves again when you close the AI panel (or a minute after an answer); the speech model comes back the next time you dictate. A recording that is running keeps recording, and its live text waits until the summary is done. Each language model stays under 6 GB.\n\nOther apps can use them through the local API: \(settings.engineBaseURL.absoluteString)/gemma/v1 and /llama/v1 (docs/API-LLM.md).")
+            Text("The AI button in Home, Notetaker and Transcribe summarizes a text or rewrites it as an email, a text message or a clean rewrite, in English or Arabic whatever the text is in. An open language model on this Mac writes it: the text never leaves the Mac, and it works with no internet.\n\nMemory: a language model and a speech model are never loaded together. When you ask for a summary the speech models step out of memory, the language model loads, writes and leaves again when you close the AI panel (or a minute after an answer); the speech model comes back the next time you dictate. A recording that is running keeps recording, and its live text waits until the summary is done. Each language model stays under 6 GB.\n\nOther apps can use them through the local API: \(settings.engineBaseURL.absoluteString)/gemma/v1 and /llama/v1 (docs/API-LLM.md).")
                 .foregroundStyle(.secondary)
         }
     }

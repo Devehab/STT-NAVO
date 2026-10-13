@@ -25,8 +25,16 @@ bash scripts/package.sh
 [ -f "$DMG" ] || { echo "error: $DMG was not made" >&2; exit 1; }
 cp -f "$DMG" dist/Navo.dmg
 
+# What is new in this version: its section of CHANGELOG.md.
+CHANGES="$(awk -v v="## $VERSION" '$0 == v { on = 1; next } /^## / { on = 0 } on' CHANGELOG.md 2>/dev/null | sed '/./,$!d')"
+
 NOTES="Navo $VERSION for Apple Silicon Macs, macOS 14 or later.
 
+${CHANGES:+New in this version:
+
+$CHANGES
+
+}
 Easiest install, one line in Terminal (downloads, installs and opens Navo, with no warning from macOS):
 
     curl -fsSL https://devehab.github.io/STT-NAVO/install.sh | bash
