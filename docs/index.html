@@ -1593,6 +1593,114 @@ td small {
   margin-block-start: 14px;
   max-width: 50em;
 }
+.note-line a {
+  color: var(--accent);
+}
+
+/* Why Navo */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.compare th small {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+.compare thead th {
+  vertical-align: bottom;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.compare thead th small {
+  color: var(--muted);
+}
+.compare tbody th {
+  width: 24%;
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.compare td {
+  color: var(--muted);
+}
+.compare tr:last-child th {
+  border-bottom: 0;
+}
+.compare .us {
+  color: var(--ink);
+  font-weight: 500;
+  background: color-mix(in srgb, var(--sky) 10%, var(--surface));
+}
+.compare thead .us {
+  background: linear-gradient(135deg, var(--violet), var(--sky));
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+.compare thead .us small {
+  color: rgba(255, 255, 255, 0.86);
+}
+.compare .lbl {
+  display: none;
+}
+@media (max-width: 600px) {
+  .compare {
+    min-width: 0;
+  }
+  .compare thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .compare tr {
+    display: grid;
+    gap: 6px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .compare tr:last-child {
+    border-bottom: 0;
+  }
+  .compare tbody th,
+  .compare td {
+    display: block;
+    width: auto;
+    padding: 0;
+    border: 0;
+  }
+  .compare tbody th {
+    font-size: 1rem;
+  }
+  .compare .lbl {
+    display: block;
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .compare td.us {
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+}
+.creators {
+  margin-block-start: clamp(44px, 7vw, 84px);
+}
+.rec-head .ico {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
 
 /* Requirements */
 .specs {
@@ -1943,6 +2051,7 @@ pre .c {
   <div class="wrap">
     <a class="brand" href="#top"><img src="icon.png" alt="" width="34" height="34">Navo</a>
     <nav class="nav" aria-label="Sections">
+      <a href="#why" data-i18n="nav.why">Why Navo</a>
       <a href="#features" data-i18n="nav.features">Features</a>
       <a href="#models" data-i18n="nav.models">Models</a>
       <a href="#requirements" data-i18n="nav.requirements">Requirements</a>
@@ -2005,7 +2114,7 @@ pre .c {
     </div>
   </section>
 
-  <section class="section news-band" id="new" aria-labelledby="new-title">
+  <section class="section band news-band" id="new" aria-labelledby="new-title">
     <div class="wrap">
       <div class="section-head">
         <p class="eyebrow"><span class="ver" dir="ltr">v<span data-version>0.13.0</span></span> <span data-i18n="new.date">October 2026</span></p>
@@ -2020,6 +2129,74 @@ pre .c {
         <article><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg><h4 data-i18n="n6.t">Free space in one click</h4><p data-i18n="n6.p">Delete any model you no longer use, with a confirmation that says how much space comes back.</p></article>
       </div>
       <p class="note-line"><span data-i18n="new.names">Record is now called Notetaker, and Files is now Transcribe.</span> <a href="https://github.com/Devehab/STT-NAVO/blob/main/CHANGELOG.md" data-i18n="new.all">All changes</a></p>
+    </div>
+  </section>
+
+  <section class="section" id="why" aria-labelledby="why-title">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow" data-i18n="why.eyebrow">Why Navo</p>
+        <h2 id="why-title" data-i18n="why.title">Your Mac already types what you say. Navo understands it.</h2>
+        <p data-i18n="why.lead">The dictation built into your Mac and your phone is free and handy for a short sentence in a quiet room. Real speech is messier: a café, a car, a dialect, an accent, an English word in the middle of an Arabic sentence. That is where one general recognizer, made for everyone, slips. Navo runs recent speech models built for exactly this, and you pick the one that fits the way you speak.</p>
+      </div>
+      <div class="more">
+        <article><svg class="ico" aria-hidden="true"><use href="#i-quiet"/></svg><h4 data-i18n="w1.t">Noise around you</h4><p data-i18n="w1.p">Qwen3-ASR is built and tested for loud, messy audio and for English spoken with many accents. Navo also leaves the silent stretches out, so background hum never turns into words.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-lang"/></svg><h4 data-i18n="w2.t">Your dialect, not only the textbook</h4><p data-i18n="w2.p">Audar learned from more than 300,000 hours of speech: Gulf, Egyptian, Levantine and Maghrebi Arabic, Modern Standard, and English.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-mic"/></svg><h4 data-i18n="w3.t">Two languages in one sentence</h4><p data-i18n="w3.p">Say staging or release inside an Arabic sentence and it comes out in English letters, not as a guess in Arabic script.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg><h4 data-i18n="w4.t">Clean text, not a raw transcript</h4><p data-i18n="w4.p">A small model on your Mac adds the punctuation and drops the filler words. It never translates and never changes your dialect.</p></article>
+      </div>
+      <p class="note-line" data-i18n="why.proof">Audar ASR V1 Turbo and Cohere Transcribe Arabic, both in Navo, rank first and second on the <a href="https://huggingface.co/spaces/elmresearchcenter/open_universal_arabic_asr_leaderboard">Open Universal Arabic ASR Leaderboard</a>, as their makers report, at about 23% and 26% average word error rate. Whisper Large v3, the model many dictation apps are built on, is at about 37% on the same tests.</p>
+
+      <h3 class="table-title" data-i18n="why.table">Navo next to the alternatives</h3>
+      <div class="table-wrap">
+        <table class="compare">
+          <thead>
+            <tr>
+              <th><span class="sr" data-i18n="c.what">What you get</span></th>
+              <th><span data-i18n="c.builtin">Built-in dictation</span><small data-i18n="c.builtin.s">Mac and iPhone</small></th>
+              <th><span data-i18n="c.paid">Paid dictation apps</span><small data-i18n="c.paid.s">By subscription</small></th>
+              <th class="us">Navo<small data-i18n="c.navo.s">Free and open source</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row" data-i18n="r1">Speech model</th><td><span class="lbl" data-i18n="c.builtin">Built-in dictation</span><span data-i18n="r1.a">One general recognizer for everyone</span></td><td><span class="lbl" data-i18n="c.paid">Paid dictation apps</span><span data-i18n="r1.b">Modern models, often in the cloud</span></td><td class="us"><span class="lbl">Navo</span><span data-i18n="r1.c">Recent models for your language: Audar or Cohere for Arabic, Whisper or Qwen3 for English</span></td></tr>
+            <tr><th scope="row" data-i18n="r2">Arabic dialects and mixed sentences</th><td><span class="lbl" data-i18n="c.builtin">Built-in dictation</span><span data-i18n="r2.a">Hit and miss</span></td><td><span class="lbl" data-i18n="c.paid">Paid dictation apps</span><span data-i18n="r2.b">Depends on the app</span></td><td class="us"><span class="lbl">Navo</span><span data-i18n="r2.c">Built for it</span></td></tr>
+            <tr><th scope="row" data-i18n="r3">Clean text</th><td><span class="lbl" data-i18n="c.builtin">Built-in dictation</span><span data-i18n="r3.a">Types what it hears, as it hears it</span></td><td><span class="lbl" data-i18n="c.paid">Paid dictation apps</span><span data-i18n="r3.b">Yes</span></td><td class="us"><span class="lbl">Navo</span><span data-i18n="r3.c">Yes, on your Mac</span></td></tr>
+            <tr><th scope="row" data-i18n="r4">Meetings, with live text and a summary</th><td><span class="lbl" data-i18n="c.builtin">Built-in dictation</span><span data-i18n="r4.a">No</span></td><td><span class="lbl" data-i18n="c.paid">Paid dictation apps</span><span data-i18n="r4.b">Some, often another app or plan</span></td><td class="us"><span class="lbl">Navo</span><span data-i18n="r4.c">Included</span></td></tr>
+            <tr><th scope="row" data-i18n="r5">Hours-long recordings and voice notes</th><td><span class="lbl" data-i18n="c.builtin">Built-in dictation</span><span data-i18n="r5.a">No</span></td><td><span class="lbl" data-i18n="c.paid">Paid dictation apps</span><span data-i18n="r5.b">Some</span></td><td class="us"><span class="lbl">Navo</span><span data-i18n="r5.c">Included, as many hours as you like</span></td></tr>
+            <tr><th scope="row" data-i18n="r6">Where your voice goes</th><td><span class="lbl" data-i18n="c.builtin">Built-in dictation</span><span data-i18n="r6.a">Depends on the language and settings</span></td><td><span class="lbl" data-i18n="c.paid">Paid dictation apps</span><span data-i18n="r6.b">Often to their servers</span></td><td class="us"><span class="lbl">Navo</span><span data-i18n="r6.c">Nowhere. It stays on your Mac</span></td></tr>
+            <tr><th scope="row" data-i18n="r7">Price</th><td><span class="lbl" data-i18n="c.builtin">Built-in dictation</span><span data-i18n="r7.a">Free with your device</span></td><td><span class="lbl" data-i18n="c.paid">Paid dictation apps</span><span data-i18n="r7.b">About $8 to $15 a month</span></td><td class="us"><span class="lbl">Navo</span><span data-i18n="r7.c">Free</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="features creators">
+        <article class="feature">
+          <div class="feature-text">
+            <span class="tile"><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg></span>
+            <h3 data-i18n="cr.t">Hours of audio, no bill by the minute</h3>
+            <p data-i18n="cr.p">For podcasters, YouTubers, journalists, teachers and students. Most transcription services charge by the minute or by a monthly plan. With Navo, a two-hour interview, a lecture or a pile of voice notes becomes text on your Mac, as often as you like, for free.</p>
+            <ul>
+              <li data-i18n="cr.a">Long audio is cut only inside a pause, so no word is split, and the text appears piece by piece while you watch.</li>
+              <li data-i18n="cr.b">Times next to every part, to find a moment, write show notes or check a quote.</li>
+              <li data-i18n="cr.c">One click turns it into a summary, the main points or a clean rewrite, in English or Arabic.</li>
+              <li data-i18n="cr.d">Notetaker records a call or a live session while the text appears as it goes.</li>
+            </ul>
+          </div>
+          <div class="vig" aria-hidden="true">
+            <div class="ui">
+              <div class="rec-head"><svg class="ico"><use href="#i-file"/></svg><b>Interview, episode 12</b><time>1:52:08</time><span class="pillbtn">Export</span><span class="pillbtn solid">AI</span></div>
+              <div class="rec-src"><span class="chip">Transcribe</span><span class="chip">Audar, Auto</span><span class="chip">With times</span></div>
+              <div class="lines">
+                <p><time>00:00</time><span>Welcome back to the show. Today we talk about building products for Arabic speakers.</span></p>
+                <p><time>04:12</time><span>The first version took us six months, mostly because of the dialects.</span></p>
+                <p class="new"><time>08:37</time><span>If I started again, I would test with real users in the first week.</span></p>
+              </div>
+              <p class="count">Part 9 of 23</p>
+            </div>
+          </div>
+        </article>
+      </div>
     </div>
   </section>
 
@@ -2500,6 +2677,60 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     "nav.install": "التثبيت",
     "nav.source": "الكود المصدري",
     "nav.download": "تنزيل",
+    "nav.why": "لماذا Navo",
+    "why.eyebrow": "لماذا Navo",
+    "why.title": "جهازك يكتب ما تقوله. Navo يفهمه.",
+    "why.lead": "الإملاء المدمج في الماك والهاتف مجاني ومفيد لجملة قصيرة في غرفة هادئة. لكن الكلام الحقيقي أصعب: مقهى، سيارة، لهجة، لكنة، كلمة إنجليزية في منتصف جملة عربية. هنا يتعثر مُعرِّف صوت عام صُمم للجميع. أما Navo فيشغّل نماذج كلام حديثة بُنيت لهذا تحديداً، وتختار منها ما يناسب طريقة كلامك.",
+    "w1.t": "الضجيج من حولك",
+    "w1.p": "نموذج Qwen3-ASR مبني ومختبَر على الصوت الصاخب، وعلى الإنجليزية بلكنات كثيرة. وNavo لا يرسل فترات الصمت إلى النموذج أصلاً، فلا يتحول طنين الخلفية إلى كلمات.",
+    "w2.t": "لهجتك، لا لغة الكتب فقط",
+    "w2.p": "تعلّم Audar من أكثر من 300 ألف ساعة من الكلام: الخليجية والمصرية والشامية والمغاربية، والفصحى، والإنجليزية.",
+    "w3.t": "لغتان في جملة واحدة",
+    "w3.p": "قل staging أو release داخل جملة عربية فتُكتب بحروف إنجليزية، لا تخميناً بحروف عربية.",
+    "w4.t": "نص نظيف، لا تفريغ خام",
+    "w4.p": "نموذج صغير على جهازك يضيف علامات الترقيم ويحذف كلمات الحشو، دون أن يترجم أو يغيّر لهجتك.",
+    "why.proof": "نموذجا Audar ASR V1 Turbo و Cohere Transcribe Arabic، وكلاهما في Navo، في المركزين الأول والثاني على <a href=\"https://huggingface.co/spaces/elmresearchcenter/open_universal_arabic_asr_leaderboard\">Open Universal Arabic ASR Leaderboard</a> بحسب ما يذكره مطوروهما، بمعدل خطأ في الكلمات يقارب 23% و26%. أما Whisper Large v3، الذي تُبنى عليه تطبيقات إملاء كثيرة، فيقارب 37% على الاختبارات نفسها.",
+    "why.table": "Navo مقارنةً بالبدائل",
+    "c.what": "ما تحصل عليه",
+    "c.builtin": "الإملاء المدمج",
+    "c.builtin.s": "الماك والآيفون",
+    "c.paid": "تطبيقات الإملاء المدفوعة",
+    "c.paid.s": "باشتراك",
+    "c.navo.s": "مجاني ومفتوح المصدر",
+    "r1": "نموذج الكلام",
+    "r1.a": "مُعرِّف عام واحد للجميع",
+    "r1.b": "نماذج حديثة، غالباً في السحابة",
+    "r1.c": "نماذج حديثة للغتك: Audar أو Cohere للعربية، و Whisper أو Qwen3 للإنجليزية",
+    "r2": "اللهجات العربية والجمل المختلطة",
+    "r2.a": "يصيب ويخطئ",
+    "r2.b": "حسب التطبيق",
+    "r2.c": "مصمم لها",
+    "r3": "نص نظيف",
+    "r3.a": "يكتب ما يسمعه كما يسمعه",
+    "r3.b": "نعم",
+    "r3.c": "نعم، على جهازك",
+    "r4": "الاجتماعات، بنص مباشر وملخص",
+    "r4.a": "لا",
+    "r4.b": "بعضها، غالباً بتطبيق أو اشتراك آخر",
+    "r4.c": "مضمَّنة",
+    "r5": "التسجيلات الطويلة والرسائل الصوتية",
+    "r5.a": "لا",
+    "r5.b": "بعضها",
+    "r5.c": "مضمَّنة، مهما طالت الساعات",
+    "r6": "أين يذهب صوتك",
+    "r6.a": "حسب اللغة والإعدادات",
+    "r6.b": "غالباً إلى خوادمهم",
+    "r6.c": "لا يذهب. يبقى على جهازك",
+    "r7": "السعر",
+    "r7.a": "مجاني مع جهازك",
+    "r7.b": "نحو 8 إلى 15 دولاراً شهرياً",
+    "r7.c": "مجاني",
+    "cr.t": "ساعات من الصوت، بلا فاتورة بالدقيقة",
+    "cr.p": "لصنّاع البودكاست واليوتيوب والصحفيين والمعلمين والطلاب. أغلب خدمات التفريغ تحاسبك بالدقيقة أو باشتراك شهري. مع Navo تصبح مقابلة من ساعتين أو محاضرة أو كومة من الرسائل الصوتية نصاً على جهازك، كلما أردت، مجاناً.",
+    "cr.a": "يُقطع الصوت الطويل داخل الوقفات فقط، فلا تنقسم كلمة، ويظهر النص جزءاً بعد جزء وأنت تتابع.",
+    "cr.b": "الوقت بجانب كل جزء، لتصل إلى لحظة بعينها أو تكتب ملاحظات الحلقة أو تتحقق من اقتباس.",
+    "cr.c": "بنقرة واحدة يصبح ملخصاً أو نقاطاً رئيسية أو صياغة نظيفة، بالعربية أو الإنجليزية.",
+    "cr.d": "Notetaker يسجّل مكالمة أو بثاً مباشراً والنص يظهر أولاً بأول.",
 
     "hero.h1": "تكلّم بدل أن تكتب.",
     "hero.h1b": "بالعربية، بالإنجليزية، أو بهما معاً في جملة واحدة.",

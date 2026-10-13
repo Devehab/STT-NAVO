@@ -11,6 +11,7 @@
 <p align="center">
   <a href="https://devehab.github.io/STT-NAVO/">Website</a> |
   <a href="https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg">Download for Mac</a> |
+  <a href="#why-navo">Why Navo</a> |
   <a href="#install">Install</a> |
   <a href="docs/API.md">Local API</a> |
   <a href="CHANGELOG.md">What is new</a>
@@ -36,6 +37,29 @@ Navo is an open source voice keyboard for macOS in the spirit of Wispr Flow. Hol
 | **Clipboard history** | Control + Option + V opens your last copies in any app |
 | **Light on memory** | Models load when you talk and leave after the idle time you choose |
 | **Private** | No cloud, no account, no tracking. The engine listens on 127.0.0.1 only |
+
+## Why Navo
+
+The dictation built into your Mac and your iPhone is free and handy for a short sentence in a quiet room. Real speech is messier: a café, a car, a dialect, an accent, an English word in the middle of an Arabic sentence. That is where one general recognizer, made for everyone, slips. Navo runs recent speech models built for exactly this, and you pick the one that fits the way you speak.
+
+- **Noise around you**: Qwen3-ASR is built and tested for loud, messy audio and for English spoken with many accents. Navo also leaves the silent stretches out, so background hum never turns into words.
+- **Your dialect, not only the textbook**: Audar learned from more than 300,000 hours of speech, Gulf, Egyptian, Levantine and Maghrebi Arabic, Modern Standard, and English.
+- **Two languages in one sentence**: say *staging* or *release* inside an Arabic sentence and it comes out in English letters.
+- **Clean text, not a raw transcript**: a small model on your Mac adds the punctuation and drops the filler words, without translating or changing your dialect.
+
+Audar ASR V1 Turbo and Cohere Transcribe Arabic, both in Navo, rank first and second on the [Open Universal Arabic ASR Leaderboard](https://huggingface.co/spaces/elmresearchcenter/open_universal_arabic_asr_leaderboard), as their makers report, at about 23% and 26% average word error rate. Whisper Large v3, the model many dictation apps are built on, is at about 37% on the same tests.
+
+| | Built-in dictation (Mac, iPhone) | Paid dictation apps | **Navo** |
+| --- | --- | --- | --- |
+| Speech model | One general recognizer for everyone | Modern models, often in the cloud | **Recent models for your language: Audar or Cohere for Arabic, Whisper or Qwen3 for English** |
+| Arabic dialects and mixed sentences | Hit and miss | Depends on the app | **Built for it** |
+| Clean text | Types what it hears, as it hears it | Yes | **Yes, on your Mac** |
+| Meetings, with live text and a summary | No | Some, often another app or plan | **Included** |
+| Hours-long recordings and voice notes | No | Some | **Included, as many hours as you like** |
+| Where your voice goes | Depends on the language and settings | Often to their servers | **Nowhere. It stays on your Mac** |
+| Price | Free with your device | About $8 to $15 a month | **Free and open source** |
+
+**For creators and long recordings.** Podcasters, YouTubers, journalists, teachers and students: most transcription services charge by the minute or by a monthly plan. With Navo, a two-hour interview, a lecture or a pile of voice notes becomes text on your Mac, as often as you like, for free. Long audio is cut only inside a pause, so no word is split; the text appears piece by piece with times next to every part, to find a moment, write show notes or check a quote; and one click turns it into a summary or a clean rewrite. Notetaker does the same live, for a call or a session while it happens.
 
 ## Features
 
