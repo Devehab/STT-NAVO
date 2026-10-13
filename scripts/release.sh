@@ -27,9 +27,13 @@ cp -f "$DMG" dist/Navo.dmg
 
 NOTES="Navo $VERSION for Apple Silicon Macs, macOS 14 or later.
 
-Download Navo.dmg, open it and drag Navo into Applications.
+Easiest install, one line in Terminal (downloads, installs and opens Navo, with no warning from macOS):
 
-This build is not signed with a paid Apple developer account, so macOS blocks it on the first open. Allow it once: open Navo, click Done, then System Settings > Privacy & Security > Open Anyway. Step by step: https://devehab.github.io/STT-NAVO/#first-open
+    curl -fsSL https://devehab.github.io/STT-NAVO/install.sh | bash
+
+Or download Navo.dmg, open it and drag Navo into Applications.
+
+This build is not signed with a paid Apple developer account, so macOS blocks the DMG version on the first open. Allow it once: open Navo, click Done, then System Settings > Privacy & Security > Open Anyway. Step by step: https://devehab.github.io/STT-NAVO/#first-open
 
 SHA-256 of Navo-$VERSION.dmg: $(cut -d' ' -f1 < "$DMG.sha256")"
 

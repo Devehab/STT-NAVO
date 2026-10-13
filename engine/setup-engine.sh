@@ -7,7 +7,7 @@
 # Environment:
 #   NAVO_SUPPORT_DIR  default: ~/Library/Application Support/Navo
 #   NAVO_ASR_MODELS   speech models to download, space separated.
-#                     default: CohereLabs/cohere-transcribe-arabic-07-2026
+#                     default: audarai/Audar-ASR-V1-Turbo (public, no account needed)
 #                     two engines: "CohereLabs/cohere-transcribe-arabic-07-2026 audarai/Audar-ASR-V1-Turbo"
 #                     the others: mlx-community/whisper-large-v3-turbo-asr-fp16,
 #                     mlx-community/Qwen3-ASR-1.7B-bf16
@@ -24,13 +24,19 @@ SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUPPORT_DIR="${NAVO_SUPPORT_DIR:-$HOME/Library/Application Support/Navo}"
 ENGINE_HOME="$SUPPORT_DIR/engine"
 VENV="$ENGINE_HOME/venv"
-ASR_MODELS="${NAVO_ASR_MODELS:-${NAVO_ASR_MODEL:-CohereLabs/cohere-transcribe-arabic-07-2026}}"
+ASR_MODELS="${NAVO_ASR_MODELS:-${NAVO_ASR_MODEL:-audarai/Audar-ASR-V1-Turbo}}"
 LLM_MODEL="${NAVO_LLM_MODEL:-mlx-community/Qwen3-4B-Instruct-2507-4bit}"
 if [ "${NAVO_SKIP_LLM:-0}" = "1" ]; then LLM_MODEL=""; fi
 
 # GUI apps do not inherit the login shell PATH.
 export PATH="$HOME/.local/bin:$HOME/.homebrew/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export PYTHONUNBUFFERED=1
+# Navo brings its own Python and ready-made packages, so nothing here needs Apple's developer
+# tools. Looking at the Mac's own /usr/bin/python3 would make macOS offer to install them (Xcode
+# Command Line Tools) on a Mac that does not have them, so uv is told to use only the Python it
+# downloads itself.
+export UV_PYTHON_PREFERENCE=only-managed
+export UV_NO_PROGRESS=1
 
 # Run from a terminal without a token: ask once (input is hidden). The app passes HF_TOKEN itself.
 GATED_MODEL=""
@@ -49,12 +55,23 @@ progress() { echo "NAVO_PROGRESS $1 $2"; }
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
 [ "$(uname -m)" = "arm64" ] || fail "The local engine needs an Apple Silicon Mac (M1 or newer)."
+MACOS_MAJOR="$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)"
+if [ -n "$MACOS_MAJOR" ] && [ "$MACOS_MAJOR" -lt 14 ]; then
+  fail "Navo needs macOS 14 or later. This Mac has macOS $(sw_vers -productVersion): update it in System Settings > General > Software Update."
+fi
 mkdir -p "$ENGINE_HOME"
+
+# About 7 GB comes down. Stop before anything is downloaded if it cannot fit.
+FREE_GB="$(df -g "$HOME" 2>/dev/null | awk 'NR == 2 { print $4 }')"
+if [ -n "$FREE_GB" ] && [ "$FREE_GB" -lt 9 ] && [ ! -x "$VENV/bin/python" ]; then
+  fail "Not enough free space: Navo needs about 9 GB for the first setup and this Mac has $FREE_GB GB free."
+fi
 
 progress 0.02 "Checking uv"
 if ! command -v uv >/dev/null 2>&1; then
   echo "uv not found, installing it to ~/.local/bin"
-  curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 INSTALLER_NO_MODIFY_PATH=1 sh
+  curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 INSTALLER_NO_MODIFY_PATH=1 sh \
+    || fail "Could not download the installer. Check the internet connection and try again."
   export PATH="$HOME/.local/bin:$PATH"
 fi
 UV="$(command -v uv)" || fail "uv installation failed"
@@ -62,11 +79,16 @@ echo "Using $("$UV" --version)"
 
 progress 0.06 "Creating Python 3.12 environment"
 if [ ! -x "$VENV/bin/python" ]; then
-  "$UV" venv --python 3.12 "$VENV"
+  "$UV" python install 3.12 || fail "Could not download Python. Check the internet connection and try again."
+  "$UV" venv --python 3.12 --python-preference only-managed "$VENV"
 fi
 
 progress 0.12 "Installing MLX, PyTorch and transformers"
-"$UV" pip install --python "$VENV/bin/python" --upgrade -r "$SRC_DIR/requirements.txt"
+# Ready-made packages only: every one of them has a build for Apple Silicon, so nothing is
+# compiled on this Mac. If a new release ever ships without one, fall back to the normal way.
+"$UV" pip install --python "$VENV/bin/python" --upgrade --no-build -r "$SRC_DIR/requirements.txt" \
+  || "$UV" pip install --python "$VENV/bin/python" --upgrade -r "$SRC_DIR/requirements.txt" \
+  || fail "Could not install the engine's packages. Check the internet connection and try again."
 
 progress 0.30 "Checking packages"
 "$VENV/bin/python" - <<'PY'

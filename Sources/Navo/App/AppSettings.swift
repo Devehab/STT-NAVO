@@ -275,6 +275,19 @@ final class AppSettings: ObservableObject {
 
     private init() {
         let defaults = UserDefaults.standard
+        // New installs start with Audar, which downloads with no account. A Mac set up before
+        // that (the engine is installed) and never changed keeps Cohere, its old starting engine.
+        if FileManager.default.fileExists(atPath: Paths.engineMarker.path) {
+            if defaults.object(forKey: Key.dictationEngine) == nil {
+                defaults.set(SpeechEngine.cohere.rawValue, forKey: Key.dictationEngine)
+            }
+            if defaults.object(forKey: Key.cohereEnabled) == nil {
+                defaults.set(true, forKey: Key.cohereEnabled)
+            }
+            if defaults.object(forKey: Key.audarEnabled) == nil {
+                defaults.set(false, forKey: Key.audarEnabled)
+            }
+        }
         defaults.register(defaults: [
             Key.language: DictationLanguage.ar.rawValue,
             Key.pushToTalkKey: PushToTalkKey.rightOption.rawValue,
@@ -294,9 +307,9 @@ final class AppSettings: ObservableObject {
             Key.hasOnboarded: false,
             Key.autoDeleteTextDays: 0,
             Key.autoDeleteAudioDays: 0,
-            Key.dictationEngine: SpeechEngine.cohere.rawValue,
-            Key.cohereEnabled: true,
-            Key.audarEnabled: false,
+            Key.dictationEngine: SpeechEngine.audar.rawValue,
+            Key.cohereEnabled: false,
+            Key.audarEnabled: true,
             Key.audarModel: SpeechEngine.audar.defaultModel,
             Key.whisperEnabled: false,
             Key.whisperModel: SpeechEngine.whisper.defaultModel,
@@ -332,7 +345,7 @@ final class AppSettings: ObservableObject {
         hasOnboarded = defaults.bool(forKey: Key.hasOnboarded)
         autoDeleteTextDays = defaults.integer(forKey: Key.autoDeleteTextDays)
         autoDeleteAudioDays = defaults.integer(forKey: Key.autoDeleteAudioDays)
-        dictationEngine = SpeechEngine(rawValue: defaults.string(forKey: Key.dictationEngine) ?? "") ?? .cohere
+        dictationEngine = SpeechEngine(rawValue: defaults.string(forKey: Key.dictationEngine) ?? "") ?? .audar
         cohereEnabled = defaults.bool(forKey: Key.cohereEnabled)
         audarEnabled = defaults.bool(forKey: Key.audarEnabled)
         audarModel = defaults.string(forKey: Key.audarModel) ?? SpeechEngine.audar.defaultModel
@@ -347,7 +360,7 @@ final class AppSettings: ObservableObject {
         // properties cannot be read before every one of them is set).
         jobEngine = SpeechEngine(rawValue: defaults.string(forKey: Key.jobEngine) ?? "")
             ?? SpeechEngine(rawValue: defaults.string(forKey: Key.dictationEngine) ?? "")
-            ?? .cohere
+            ?? .audar
         jobLanguage = DictationLanguage(rawValue: defaults.string(forKey: Key.jobLanguage) ?? "")
             ?? DictationLanguage(rawValue: defaults.string(forKey: Key.language) ?? "")
             ?? .ar

@@ -81,14 +81,30 @@ The macOS app is native Swift (SwiftUI + AppKit). The engine is a small FastAPI 
 
 ## Install
 
-1. Download [**Navo.dmg**](https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg), open it and drag **Navo** into **Applications**.
-2. Open Navo from Applications. Navo is not signed with a paid Apple developer account, so macOS says it could not verify it: click **Done**, open **System Settings > Privacy & Security**, scroll down and click **Open Anyway** next to Navo, then confirm with your password or Touch ID. You do this once. (In Terminal, `xattr -dr com.apple.quarantine /Applications/Navo.app` does the same.) (A build signed with an Apple Developer ID and notarized opens with no warning at all, see [Make the download](#make-the-download).)
-3. Navo opens its Settings. The **Setup** list at the top shows what Navo needs, step by step, and what is already on your Mac. Click **Install**: it downloads Python, MLX, the speech model for dictation and the small cleanup model (about 7 GB, one time), then works offline. No account is needed: without a Hugging Face token Navo installs **Audar**. For **Cohere** too, accept its terms at [huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026](https://huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026), create a **Read** token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens), paste it in Settings and click **Download** next to Cohere. **Whisper** and **Qwen3** are public like Audar: click **Download** next to them, no token needed.
-4. Optional, for summaries and rewrites: click **Download Gemma** in the Setup list (5.2 GB, no token). **Models on this Mac** in the same place lists all seven models with their size, what each is for, which one is required, and whether it is downloaded.
-5. Allow **Microphone** and **Accessibility** when Navo asks (Settings shows both).
-6. When the sidebar says **Local engine: Ready**, click into any text field, hold **Right ⌥**, talk, release.
+The quick way, one line in Terminal (press Command + Space, type Terminal, press Return, then paste):
 
-To update, drag the new version into Applications and replace the old one. Your history, recordings and models stay. If the new version is signed differently, macOS asks for Accessibility and Microphone once more.
+```bash
+curl -fsSL https://devehab.github.io/STT-NAVO/install.sh | bash
+```
+
+It downloads Navo, puts it in Applications and opens it. macOS shows no warning, because a file that comes through `curl` is not put in quarantine. The script is short, read it first if you like: [docs/install.sh](docs/install.sh). The same line updates Navo later.
+
+Or with the disk image:
+
+1. Download [**Navo.dmg**](https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg), open it and drag **Navo** into **Applications**.
+2. Open Navo from Applications. Navo is not signed with a paid Apple developer account, so macOS says it could not verify it: click **Done**, open **System Settings > Privacy & Security**, scroll down and click **Open Anyway** next to Navo, then confirm with your password or Touch ID. You do this once. (A build signed with an Apple Developer ID and notarized opens with no warning at all, see [Make the download](#make-the-download).)
+
+Either way, Navo opens on a welcome screen with three steps:
+
+1. **Download and set up**: Navo brings its own Python, MLX, the Audar speech model and the small cleanup model, about 7 GB, one time, then works offline. No account, no token, and no developer tools (Xcode) are needed.
+2. **Allow the microphone**.
+3. **Allow Accessibility**, so Navo can see the dictation key and paste the text for you.
+
+Then click into any text field, hold **Right ⌥**, talk, and let go.
+
+More models are one click away in Settings: **Whisper** and **Qwen3** for speech, **Gemma** or **Llama** for summaries (5.2 and 4.5 GB). Only **Cohere** needs an account: accept its terms at [huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026](https://huggingface.co/CohereLabs/cohere-transcribe-arabic-07-2026), create a **Read** token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens), paste it in Settings and click **Download** next to Cohere. **Models on this Mac** in Settings lists all seven models with their size and whether each is downloaded.
+
+To update, run the line again, or drag the new version into Applications and replace the old one. Your history, recordings and models stay. If the new version is signed differently, macOS asks for Accessibility and Microphone once more.
 
 ## Requirements
 

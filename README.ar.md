@@ -64,13 +64,32 @@ Navo لوحة مفاتيح صوتية مفتوحة المصدر لنظام macOS
 
 ## التثبيت
 
+الطريقة الأسهل، سطر واحد في Terminal (اضغط Command + Space، اكتب Terminal، ثم Return، والصق السطر):
+
+</div>
+
+```bash
+curl -fsSL https://devehab.github.io/STT-NAVO/install.sh | bash
+```
+
+<div dir="rtl">
+
+ينزَّل Navo ويدخل مجلد Applications ويفتح وحده، دون أي تحذير من macOS. والسطر نفسه يحدّث Navo لاحقاً.
+
+أو بملف DMG:
+
 1. نزّل ملف [Navo.dmg](https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg)، افتحه، واسحب Navo إلى مجلد Applications.
 2. افتح Navo. التطبيق غير موقّع بحساب مطوّر مدفوع من Apple، فسيقول macOS إنه لم يستطع التحقق منه: اضغط Done، ثم افتح System Settings ثم Privacy & Security، وانزل واضغط Open Anyway بجانب Navo وأكّد بكلمة المرور أو Touch ID. مرة واحدة فقط.
-3. في الإعدادات تعرض قائمة Setup كل خطوة. اضغط Install: ينزّل Python و MLX ونموذج صوت ونموذج الترتيب الصغير، نحو 7 غيغابايت ولمرة واحدة. دون Token يُثبَّت Audar.
-4. اختياري، لنموذج Cohere: وافق على شروط النموذج في Hugging Face، أنشئ Token من نوع Read من [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)، الصقه في الإعدادات واضغط Download بجانب Cohere.
-5. اختياري، للملخصات: اضغط Download Gemma في قائمة Setup (5.2 غيغابايت).
-6. اسمح بالميكروفون و Accessibility عندما يطلبهما Navo.
-7. عندما يظهر Local engine: Ready، انقر داخل أي حقل نص، اضغط مطولاً على Right Option، تكلّم، ثم ارفع إصبعك.
+
+في الحالتين يفتح Navo على شاشة ترحيب فيها ثلاث خطوات:
+
+1. **Download and set up:** يجلب Navo نسخته الخاصة من Python و MLX ونموذج Audar للصوت ونموذج الترتيب الصغير، نحو 7 غيغابايت ولمرة واحدة. لا حساب، ولا Token، ولا أدوات مطوّرين (Xcode).
+2. **السماح بالميكروفون.**
+3. **السماح بـ Accessibility**، ليرى Navo مفتاح الإملاء ويلصق النص عنك.
+
+بعدها انقر داخل أي حقل نص، اضغط مطولاً على Right Option، تكلّم، ثم ارفع إصبعك.
+
+باقي النماذج تُضاف من الإعدادات بنقرة واحدة: Whisper و Qwen3 للصوت، و Gemma أو Llama للملخصات. و Cohere وحده يحتاج Token مجانياً من [Hugging Face](https://huggingface.co/settings/tokens).
 
 ## الاختصارات
 

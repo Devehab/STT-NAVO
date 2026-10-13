@@ -1796,6 +1796,35 @@ pre .c {
   max-width: none;
   color: var(--ink);
 }
+.open-guide + .open-guide {
+  margin-block-start: 16px;
+}
+.rec-tag {
+  display: inline-block;
+  vertical-align: 0.15em;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  color: var(--ok);
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.copyline {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-block: 14px 4px;
+}
+.copyline pre {
+  flex: 1;
+  min-width: 0;
+}
+.copyline button {
+  flex: none;
+  cursor: pointer;
+  font-family: var(--font-display);
+}
 .open-guide .alt {
   font-size: 0.92rem;
   margin-block: 14px 8px;
@@ -2263,18 +2292,17 @@ pre .c {
     <div class="wrap">
       <div class="section-head">
         <h2 id="install-title" data-i18n="install.title">Install and first setup</h2>
-        <p data-i18n="install.lead">About ten minutes, most of it the one time download.</p>
+        <p data-i18n="install.lead">Three clicks, then a one time download that runs by itself.</p>
       </div>
       <div class="install">
         <ol class="steps">
-          <li><div data-i18n="s1">Download the <b>DMG</b> file, open it and drag <b>Navo</b> into <b>Applications</b>.</div></li>
-          <li><div data-i18n="s2">Open Navo. If macOS says it cannot check the app, open <b>System Settings &gt; Privacy &amp; Security</b> and click <b>Open Anyway</b> next to Navo. You do this once.</div></li>
-          <li><div data-i18n="s3">Navo opens its Settings. The <b>Setup</b> list shows every step and what is already on your Mac. Click <b>Install</b>: it downloads Python, MLX, a speech model and the small cleanup model, about 7 GB, one time. With no token it installs Audar.</div></li>
-          <li><div data-i18n="s4"><span class="opt">Optional, for Cohere.</span> Accept the model's terms on Hugging Face, create a <b>Read</b> token at <span dir="ltr">huggingface.co/settings/tokens</span>, paste it in Settings and click <b>Download</b> next to Cohere.</div></li>
-          <li><div data-i18n="s5"><span class="opt">Optional, for summaries.</span> Click <b>Download Gemma</b> in the Setup list (5.2 GB, no token).</div></li>
-          <li><div data-i18n="s6">Allow <b>Microphone</b> and <b>Accessibility</b> when Navo asks.</div></li>
-          <li><div data-i18n="s7">When the sidebar says <b>Local engine: Ready</b>, click into any text field, hold <kbd>Right Option</kbd>, talk, and release.</div></li>
+          <li><div data-i18n="s1">Install Navo with the <a href="#quick">one line in Terminal</a>, or with the <a href="#first-open">DMG file</a>. Navo opens on a welcome screen with three steps.</div></li>
+          <li><div data-i18n="s2">Click <b>Download and set up</b>. Navo brings its own Python, MLX, a speech model and the small cleanup model, about 7 GB, one time. No account, no token and no developer tools are needed.</div></li>
+          <li><div data-i18n="s3">Click <b>Allow</b> for the <b>Microphone</b>.</div></li>
+          <li><div data-i18n="s4">Click <b>Open Settings</b> for <b>Accessibility</b> and turn Navo on in the list. It lets Navo paste the text for you.</div></li>
+          <li><div data-i18n="s5">When the download finishes, click into any text field, hold <kbd>Right Option</kbd>, talk, and let go.</div></li>
         </ol>
+        <p class="note-line" data-i18n="s.more">Later, in Settings, you can add more models: Whisper and Qwen3 with one click, Gemma or Llama for summaries, and Cohere, the only one that needs a free Hugging Face token.</p>
       </div>
     </div>
   </section>
@@ -2339,18 +2367,24 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
           <span data-i18n="dl.cta">Download Navo for Mac</span>
         </a>
         <p class="meta"><span data-i18n="dl.meta.a">DMG file</span> | <span data-i18n="dl.meta.v">Version</span> <span dir="ltr" data-version>0.11.1</span> | <span data-i18n="dl.meta.b">macOS 14 or later</span> | <span dir="ltr">Apple Silicon</span></p>
+        <div class="open-guide" id="quick">
+          <h3><span class="rec-tag" data-i18n="q.tag">Easiest</span> <span data-i18n="q.title">Install with one line</span></h3>
+          <p data-i18n="q.p">Open <b>Terminal</b> (press <kbd>Command</kbd> <kbd>Space</kbd>, type Terminal, press Return), paste this line and press Return:</p>
+          <div class="copyline">
+            <pre id="install-line">curl -fsSL https://devehab.github.io/STT-NAVO/install.sh | bash</pre>
+            <button class="btn btn-quiet btn-small" id="copy-line" type="button" data-i18n="q.copy">Copy</button>
+          </div>
+          <p class="alt" data-i18n="q.after">Navo downloads, goes into Applications and opens by itself. macOS shows no warning and there is nothing to change in System Settings. The same line updates Navo later.</p>
+        </div>
         <div class="open-guide" id="first-open">
-          <h3 data-i18n="og.title">Opening Navo the first time</h3>
-          <p data-i18n="og.why">Navo is free and open source, and it is not signed with a paid Apple developer account. So macOS blocks it the first time and asks you to allow it yourself. You do this once, and it takes a minute.</p>
+          <h3 data-i18n="og.title">Or with the DMG file</h3>
+          <p data-i18n="og.why">Navo is free and open source, and it is not signed with a paid Apple developer account. So when it comes from a browser download, macOS blocks it the first time and asks you to allow it yourself. You do this once.</p>
           <ol class="steps">
             <li><div data-i18n="og.1">Open the downloaded <b dir="ltr">Navo.dmg</b> and drag <b>Navo</b> onto <b>Applications</b>.</div></li>
-            <li><div data-i18n="og.2">Open <b>Navo</b> from Applications. macOS says it <b>could not verify</b> the app. Click <b>Done</b> (do not move it to the Trash).</div></li>
+            <li><div data-i18n="og.2">Open <b>Navo</b> from Applications (or from Launchpad). macOS says it <b>could not verify</b> the app. Click <b>Done</b>, do not move it to the Trash.</div></li>
             <li><div data-i18n="og.3">Open <b dir="ltr">System Settings &gt; Privacy &amp; Security</b> and scroll down to <b>Security</b>. Next to "Navo was blocked", click <b>Open Anyway</b>.</div></li>
             <li><div data-i18n="og.4">Click <b>Open Anyway</b> again and confirm with your password or Touch ID. Navo opens, and from now on it opens like any other app.</div></li>
-            <li><div data-i18n="og.5">Navo then asks for <b>Microphone</b> and <b>Accessibility</b>. Allow both: the first lets it hear you, the second lets it paste the text for you.</div></li>
           </ol>
-          <p class="alt" data-i18n="og.alt">Comfortable with Terminal? This one line does the same as steps 2 to 4:</p>
-          <pre>xattr -dr com.apple.quarantine /Applications/Navo.app</pre>
           <p class="alt" data-i18n="og.trust">Do not want to trust a download? The code is open: read it and build Navo yourself with <code>./scripts/run.sh</code>.</p>
         </div>
       </div>
@@ -2375,7 +2409,7 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
 
   // The three things to set when the page goes online.
   var NAVO = {
-    version: "0.11.1",
+    version: "0.12.0",
     // Where the download buttons point: the hosted .dmg, for example a GitHub release file.
     // `bash scripts/release.sh` uploads Navo.dmg to a new release, and this link always gives the newest one.
     download: "https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg",
@@ -2535,14 +2569,25 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     "req.perm.d": "الميكروفون، و Accessibility ليستطيع Navo لصق النص. و System Audio Recording إن كنت تسجّل الاجتماعات.",
 
     "install.title": "التثبيت والإعداد الأول",
-    "install.lead": "نحو عشر دقائق، أغلبها للتنزيل الذي يحدث مرة واحدة.",
-    "s1": "نزّل ملف <b>DMG</b>، افتحه، واسحب <b>Navo</b> إلى مجلد <b>Applications</b>.",
-    "s2": "افتح Navo. إن قال macOS إنه لا يستطيع التحقق من التطبيق، افتح <b dir=\"ltr\">System Settings &gt; Privacy &amp; Security</b> واضغط <b>Open Anyway</b> بجانب Navo. تفعل ذلك مرة واحدة.",
-    "s3": "يفتح Navo إعداداته. قائمة <b>Setup</b> تعرض كل خطوة وما هو موجود على جهازك. اضغط <b>Install</b>: ينزّل Python و MLX ونموذج صوت ونموذج الترتيب الصغير، نحو 7 غيغابايت ولمرة واحدة. دون Token يُثبَّت Audar.",
-    "s4": "<span class=\"opt\">اختياري، لنموذج Cohere.</span> وافق على شروط النموذج في Hugging Face، أنشئ Token من نوع <b>Read</b> من <span dir=\"ltr\">huggingface.co/settings/tokens</span>، الصقه في الإعدادات واضغط <b>Download</b> بجانب Cohere.",
-    "s5": "<span class=\"opt\">اختياري، للملخصات.</span> اضغط <b>Download Gemma</b> في قائمة Setup (5.2 غيغابايت، دون Token).",
-    "s6": "اسمح بـ <b>Microphone</b> و <b>Accessibility</b> عندما يطلبهما Navo.",
-    "s7": "عندما يظهر في الشريط الجانبي <b dir=\"ltr\">Local engine: Ready</b>، انقر داخل أي حقل نص، اضغط مطولاً على <kbd>Right Option</kbd>، تكلّم، ثم ارفع إصبعك.",
+    "install.lead": "ثلاث نقرات، ثم تنزيل لمرة واحدة يعمل وحده.",
+    "s1": "ثبّت Navo <a href=\"#quick\">بسطر واحد في Terminal</a>، أو <a href=\"#first-open\">بملف DMG</a>. يفتح Navo على شاشة ترحيب فيها ثلاث خطوات.",
+    "s2": "اضغط <b>Download and set up</b>. يجلب Navo نسخته الخاصة من Python و MLX ونموذج صوت ونموذج الترتيب الصغير، نحو 7 غيغابايت ولمرة واحدة. لا حساب، ولا Token، ولا أدوات مطوّرين.",
+    "s3": "اضغط <b>Allow</b> للسماح بـ <b>Microphone</b>.",
+    "s4": "اضغط <b>Open Settings</b> عند <b>Accessibility</b> وفعّل Navo في القائمة. هذا ما يسمح له بلصق النص عنك.",
+    "s5": "عندما ينتهي التنزيل، انقر داخل أي حقل نص، اضغط مطولاً على <kbd>Right Option</kbd>، تكلّم، ثم ارفع إصبعك.",
+    "s.more": "لاحقاً، من الإعدادات، يمكنك إضافة نماذج أخرى: Whisper و Qwen3 بنقرة واحدة، و Gemma أو Llama للملخصات، و Cohere وهو الوحيد الذي يحتاج Token مجانياً من Hugging Face.",
+    "q.tag": "الأسهل",
+    "q.title": "التثبيت بسطر واحد",
+    "q.p": "افتح <b>Terminal</b> (اضغط <kbd>Command</kbd> <kbd>Space</kbd>، اكتب Terminal، ثم Return)، الصق هذا السطر واضغط Return:",
+    "q.copy": "نسخ",
+    "q.after": "ينزَّل Navo ويدخل مجلد Applications ويفتح وحده. لا يُظهر macOS أي تحذير، ولا شيء تغيّره في System Settings. والسطر نفسه يحدّث Navo لاحقاً.",
+    "og.title": "أو بملف DMG",
+    "og.why": "Navo مجاني ومفتوح المصدر، وهو غير موقّع بحساب مطوّر مدفوع من Apple. لذلك حين يأتي من تنزيل المتصفح يحجبه macOS في المرة الأولى ويطلب منك أن تسمح به بنفسك. تفعل ذلك مرة واحدة.",
+    "og.1": "افتح ملف <b dir=\"ltr\">Navo.dmg</b> الذي نزّلته، واسحب <b>Navo</b> إلى <b>Applications</b>.",
+    "og.2": "افتح <b>Navo</b> من Applications (أو من Launchpad). سيقول macOS إنه <b>لم يستطع التحقق</b> من التطبيق. اضغط <b>Done</b>، ولا تنقله إلى سلة المهملات.",
+    "og.3": "افتح <b dir=\"ltr\">System Settings &gt; Privacy &amp; Security</b> وانزل إلى قسم <b>Security</b>. بجانب عبارة \"Navo was blocked\" اضغط <b>Open Anyway</b>.",
+    "og.4": "اضغط <b>Open Anyway</b> مرة أخرى وأكّد بكلمة المرور أو Touch ID. يفتح Navo، ومن الآن يفتح مثل أي تطبيق آخر.",
+    "og.trust": "لا تريد أن تثق بملف منزَّل؟ الكود مفتوح: اقرأه وابنِ Navo بنفسك بالأمر <code>./scripts/run.sh</code>.",
     "install.alt": "قائمة Setup في الإعدادات مع النماذج الموجودة على الجهاز",
 
     "keys.title": "الاختصارات",
@@ -2568,15 +2613,6 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     "dl.meta.a": "ملف DMG",
     "dl.meta.v": "الإصدار",
     "dl.meta.b": "macOS 14 أو أحدث",
-    "og.title": "فتح Navo لأول مرة",
-    "og.why": "Navo مجاني ومفتوح المصدر، وهو غير موقّع بحساب مطوّر مدفوع من Apple. لذلك يحجبه macOS في المرة الأولى ويطلب منك أن تسمح به بنفسك. تفعل ذلك مرة واحدة، ويأخذ دقيقة.",
-    "og.1": "افتح ملف <b dir=\"ltr\">Navo.dmg</b> الذي نزّلته، واسحب <b>Navo</b> إلى <b>Applications</b>.",
-    "og.2": "افتح <b>Navo</b> من Applications. سيقول macOS إنه <b>لم يستطع التحقق</b> من التطبيق. اضغط <b>Done</b> (لا تنقله إلى سلة المهملات).",
-    "og.3": "افتح <b dir=\"ltr\">System Settings &gt; Privacy &amp; Security</b> وانزل إلى قسم <b>Security</b>. بجانب عبارة \"Navo was blocked\" اضغط <b>Open Anyway</b>.",
-    "og.4": "اضغط <b>Open Anyway</b> مرة أخرى وأكّد بكلمة المرور أو Touch ID. يفتح Navo، ومن الآن يفتح مثل أي تطبيق آخر.",
-    "og.5": "بعدها يطلب Navo إذن <b>Microphone</b> وإذن <b>Accessibility</b>. اسمح بهما: الأول ليسمعك، والثاني ليلصق النص عنك.",
-    "og.alt": "تفضّل Terminal؟ هذا السطر يفعل ما تفعله الخطوات 2 إلى 4:",
-    "og.trust": "لا تريد أن تثق بملف منزَّل؟ الكود مفتوح: اقرأه وابنِ Navo بنفسك بالأمر <code>./scripts/run.sh</code>.",
 
     "foot.p": "رخصة MIT. مبني على MLX و mlx-audio و mlx-lm، مع نماذج مفتوحة من Cohere Labs و AudarAI و OpenAI و Qwen و Google و Meta. مستوحى من Wispr Flow.",
     "foot.source": "الكود المصدري",
@@ -2669,6 +2705,29 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
       var next = current === "ar" ? "en" : "ar";
       remember(next);
       apply(next);
+    });
+  }
+
+  // The install line: one click copies it. Where the browser refuses, the line is selected instead.
+  var copyButton = document.getElementById("copy-line");
+  var installLine = document.getElementById("install-line");
+  if (copyButton && installLine) {
+    copyButton.addEventListener("click", function () {
+      function done() {
+        copyButton.textContent = current === "ar" ? "تم النسخ" : "Copied";
+      }
+      function select() {
+        var range = document.createRange();
+        range.selectNodeContents(installLine);
+        var selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(installLine.textContent).then(done, select);
+      } else {
+        select();
+      }
     });
   }
 

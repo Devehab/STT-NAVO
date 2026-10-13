@@ -8,6 +8,9 @@ let navoBrandGradient = LinearGradient(
 
 struct HubView: View {
     @EnvironmentObject private var router: HubRouter
+    @EnvironmentObject private var engine: LocalEngineManager
+    /// The first-run steps, over the whole window, until Navo can dictate.
+    @State private var welcoming = false
 
     var body: some View {
         NavigationSplitView {
@@ -61,6 +64,15 @@ struct HubView: View {
             idealHeight: HubView.minimumSize.height,
             maxHeight: .infinity
         )
+        .overlay {
+            if welcoming {
+                WelcomeView { welcoming = false }
+            }
+        }
+        .onAppear {
+            // The sample data of a demo needs no setup.
+            welcoming = !Paths.isDemo && WelcomeView.isNeeded(engine)
+        }
     }
 
     static let minimumSize = CGSize(width: 900, height: 560)
