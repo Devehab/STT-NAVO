@@ -471,6 +471,15 @@ code {
 .pasted.fresh {
   animation: landed 1.6s ease-out;
 }
+.pasted .w {
+  animation: said 0.24s ease-out both;
+}
+@keyframes said {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+  }
+}
 @keyframes landed {
   0% {
     background: color-mix(in srgb, var(--sky) 46%, transparent);
@@ -538,9 +547,6 @@ code {
   width: 38px;
   height: 38px;
 }
-.fb[data-state="work"] {
-  width: 168px;
-}
 .fb > * {
   position: absolute;
   left: 50%;
@@ -551,8 +557,7 @@ code {
   pointer-events: none;
 }
 .fb[data-state="orb"] .fb-orb,
-.fb[data-state="rec"] .fb-rec,
-.fb[data-state="work"] .fb-work {
+.fb[data-state="rec"] .fb-rec {
   opacity: 1;
 }
 .fb-orb {
@@ -655,26 +660,39 @@ code {
   text-align: center;
   line-height: 1.5;
 }
-.fb-work {
-  display: flex;
+.sound {
+  position: absolute;
+  top: calc(clamp(16px, 2.6vw, 26px) + 6px);
+  right: calc(clamp(16px, 2.6vw, 26px) + 8px);
+  z-index: 1;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-size: 0.78rem;
-  font-weight: 500;
-  white-space: nowrap;
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font: 500 0.76rem/1.4 var(--font-body);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
-.spin {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  border-top-color: #ffffff;
-  animation: turn 0.8s linear infinite;
+.sound:hover,
+.sound[aria-pressed="true"] {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--sky) 60%, var(--line));
 }
-@keyframes turn {
-  to {
-    transform: rotate(360deg);
-  }
+.sound svg {
+  width: 16px;
+  height: 16px;
+}
+.sound > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sound[aria-pressed="true"] .s-off,
+.sound[aria-pressed="false"] .s-on {
+  display: none;
 }
 .hold {
   display: flex;
@@ -724,7 +742,7 @@ code {
   margin: 16px 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 .phases li {
@@ -751,7 +769,7 @@ code {
   }
   .caret,
   .fb-dot,
-  .spin,
+  .pasted .w,
   .pasted.fresh,
   .swap em {
     animation: none;
@@ -1916,6 +1934,8 @@ pre .c {
     <symbol id="i-term" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M7.5 10l3 2.5-3 2.5M13 15h4"/></symbol>
     <symbol id="i-option" viewBox="0 0 24 24"><path d="M3.5 7H9l6 10h5.5M14.5 7h6"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.5a7.8 7.8 0 0 1 0 11"/></symbol>
+    <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM16 9.5l5 5M21 9.5l-5 5"/></symbol>
   </defs>
 </svg>
 
@@ -1953,6 +1973,10 @@ pre .c {
       </div>
 
       <div class="stage" id="demo">
+        <button class="sound" id="demo-sound" type="button" aria-pressed="false">
+          <span class="s-off"><svg class="ico" aria-hidden="true"><use href="#i-mute"/></svg><span data-i18n="demo.soundOff">Hear it</span></span>
+          <span class="s-on"><svg class="ico" aria-hidden="true"><use href="#i-sound"/></svg><span data-i18n="demo.soundOn">Sound on</span></span>
+        </button>
         <div class="win" dir="ltr" aria-hidden="true">
           <div class="win-bar"><i></i><i></i><i></i><b id="demo-app">Mail</b></div>
           <div class="win-meta" id="demo-meta">To: Sara</div>
@@ -1963,7 +1987,6 @@ pre .c {
           <div class="fb" id="demo-fb" data-state="orb">
             <span class="fb-orb"></span>
             <span class="fb-rec"><span class="fb-x"></span><span class="fb-dot"></span><span class="fb-wave" id="demo-wave"></span><span class="fb-time" id="demo-time">0:00</span><span class="fb-chip" id="demo-chip">EN</span><span class="fb-stop"></span></span>
-            <span class="fb-work"><span class="spin"></span><span id="demo-work">Transcribing…</span></span>
           </div>
         </div>
         <div class="hold">
@@ -1971,13 +1994,12 @@ pre .c {
             <svg class="ico" aria-hidden="true"><use href="#i-option"/></svg>
             <span>option</span>
           </button>
-          <p data-i18n="demo.hint">Try it: hold this key, or the Option key on your keyboard, then let go.</p>
+          <p data-i18n="demo.hint">Try it: hold this key, or Option on your keyboard, to hear a real dictation and watch the words appear.</p>
         </div>
         <ol class="phases" id="demo-phases" aria-hidden="true">
-          <li data-phase="hold" data-i18n="ph.hold">You hold the key</li>
-          <li data-phase="listen" data-i18n="ph.listen">Navo listens</li>
-          <li data-phase="write" data-i18n="ph.write">It writes on your Mac</li>
-          <li data-phase="paste" class="on" data-i18n="ph.paste">It pastes for you</li>
+          <li data-phase="hold" data-i18n="ph.hold">You hold the key and talk</li>
+          <li data-phase="write" data-i18n="ph.write">The words appear as you speak</li>
+          <li data-phase="paste" class="on" data-i18n="ph.paste">You let go, it is pasted</li>
         </ol>
       </div>
     </div>
@@ -2487,12 +2509,13 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     "hero.meta": "مجاني ومفتوح المصدر (MIT) | macOS 14 أو أحدث | معالجات Apple Silicon",
 
     "demo.toast": "أُلصق عنك",
-    "demo.hint": "جرّب: اضغط مطولاً على هذا المفتاح، أو على مفتاح Option في لوحة مفاتيحك، ثم ارفع إصبعك.",
+    "demo.hint": "جرّب: اضغط مطولاً على هذا المفتاح، أو على مفتاح Option في لوحة مفاتيحك، لتسمع إملاءً حقيقياً وترى الكلام يظهر.",
+    "demo.soundOff": "اسمع الصوت",
+    "demo.soundOn": "الصوت يعمل",
     "demo.key": "اضغط مطولاً لترى Navo يستمع",
-    "ph.hold": "تضغط المفتاح",
-    "ph.listen": "Navo يستمع",
-    "ph.write": "يكتب على جهازك",
-    "ph.paste": "يلصق عنك",
+    "ph.hold": "تضغط المفتاح وتحكي",
+    "ph.write": "الكلام يظهر وأنت تحكي",
+    "ph.paste": "ترفع إصبعك فيُلصق النص",
 
     "new.date": "أكتوبر 2026",
     "new.title": "ما الجديد في هذا الإصدار",
@@ -2816,16 +2839,40 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     if (link) link.setAttribute("href", NAVO.repo + (link.dataset.repoLink || ""));
   });
 
-  // The hero demo. A key goes down, the Flow Bar opens and shows a voice, the key comes up, Navo
-  // works for a moment and the sentence is pasted into the app. It plays by itself, and the
-  // visitor can drive it: hold the key on the page, or the Option key on the keyboard.
+  // The hero demo plays real dictations. A key goes down, the Flow Bar opens, the recording plays
+  // and every word lands in the app at the moment it is spoken, the way live dictation shows it.
+  // When the key comes up the text is pasted. It loops by itself, silent until the visitor turns
+  // the sound on, and the visitor can drive it: hold the key on the page, or Option on the keyboard.
+  // "at" is when each word starts, in seconds. "env" is the loudness of the voice, one digit
+  // (0 to 9) for every 50 ms of the recording; it draws the waveform in the Flow Bar.
   var samples = [
-    { app: "Mail", meta: "To: Sara", chip: "EN", text: "Hi Sara, thanks for sending the draft. Could we move the pricing table up, right after the introduction?" },
-    { app: "WhatsApp", meta: "Samer", chip: "AR", text: "مرحبا سامر، خلصت مراجعة العرض وبعتلك الملاحظات على الإيميل." },
-    { app: "Notes", meta: "Weekend trip", chip: "EN", text: "Leave early on Saturday, stop at the lake for breakfast, then take the coast road." },
-    { app: "Slack", meta: "# product", chip: "AR", text: "يا شباب، الـ build الجديد جاهز على الـ staging، جربوه قبل ما نعمل release." }
+    {
+      app: "Mail", meta: "To: Sara", chip: "EN", audio: "audio/en-sara.mp3", length: 6.19,
+      text: "Hi Sara, thanks for sending the draft. Could we move the pricing table up, right after the introduction?",
+      at: [0.07, 0.23, 0.52, 1.19, 1.4, 1.78, 1.99, 2.76, 3.05, 3.21, 3.46, 3.66, 4.05, 4.34, 4.55, 4.84, 5.14, 5.34],
+      env: "0499987988887642222226997689799798786799763415300000206797998898799365998678768979953997535333579986885798887889964565542000"
+    },
+    {
+      app: "WhatsApp", meta: "Samer", chip: "AR", audio: "audio/ar-samer.mp3", length: 4.83,
+      text: "مرحبا سامر، خلصت مراجعة العرض وبعتلك الملاحظات على الإيميل.",
+      at: [0.08, 0.51, 1.36, 1.72, 2.21, 2.64, 3.13, 3.81, 4.11],
+      env: "0699879896787655531100000149899656789999988777689985444677788785896876888748689877776555565442301"
+    },
+    {
+      app: "Notes", meta: "Weekend trip", chip: "EN", audio: "audio/en-lake.mp3", length: 5.25,
+      text: "Leave early on Saturday, stop at the lake for breakfast, then take the coast road.",
+      at: [0.06, 0.38, 0.69, 0.86, 1.37, 1.91, 2.08, 2.3, 2.57, 2.79, 3.34, 3.92, 4.19, 4.41, 4.72],
+      env: "089999878999998866688657676764311001555995979999884487488643677565542100008997766787674768866467655532000"
+    },
+    {
+      app: "Slack", meta: "# product", chip: "AR", audio: "audio/ar-build.mp3", length: 5.33,
+      text: "يا شباب، الـ build الجديد جاهز على الـ staging، جربوه قبل ما نعمل release.",
+      at: [0.08, 0.28, 0.65, 0.91, 1.29, 1.72, 2.03, 2.29, 2.55, 3.47, 3.84, 4.1, 4.3, 4.61],
+      env: "07997999975432341676699878769977886589987878767564777543352100000359889789997647999879888768767666444543000"
+    }
   ];
   var ui = {
+    stage: document.getElementById("demo"),
     app: document.getElementById("demo-app"),
     meta: document.getElementById("demo-meta"),
     text: document.getElementById("demo-text"),
@@ -2834,8 +2881,8 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     wave: document.getElementById("demo-wave"),
     time: document.getElementById("demo-time"),
     chip: document.getElementById("demo-chip"),
-    work: document.getElementById("demo-work"),
     key: document.getElementById("demo-key"),
+    sound: document.getElementById("demo-sound"),
     phases: document.getElementById("demo-phases")
   };
   var ready = Object.keys(ui).every(function (name) { return ui[name]; });
@@ -2844,64 +2891,26 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
   var next = 1; // the first sample is already on the page
   var listening = false;
   var byHand = false;
+  var loud = false; // the visitor asked for sound
+  var seen = true; // the demo is on screen
   var bars = [];
   var levels = [];
-  var waveTimer = null;
-  var heard = 0;
+  var voice = null; // one audio element for every sample, so Safari lets it play after the first tap
+  var take = null; // the dictation playing now
+  var seed = 7;
 
-  // A voice, roughly: words of a few syllables with short gaps between them.
-  var voice = { word: 0, gap: 0, beat: 0, energy: 0, loud: 0.7, seed: 7 };
   function chance() {
-    voice.seed = (voice.seed * 16807) % 2147483647;
-    return voice.seed / 2147483647;
-  }
-  function level() {
-    if (voice.gap > 0) {
-      voice.gap -= 1;
-      voice.energy *= 0.35;
-      return voice.energy * 0.6 + chance() * 0.04;
-    }
-    if (voice.word <= 0) {
-      if (chance() < 0.22) {
-        voice.gap = 2 + Math.floor(chance() * 5);
-        return level();
-      }
-      voice.word = 3 + Math.floor(chance() * 6);
-      voice.beat = 0;
-      voice.loud = 0.45 + chance() * 0.55;
-    }
-    voice.word -= 1;
-    voice.beat += 1;
-    var shape = Math.pow(Math.abs(Math.sin(voice.beat * 1.15 + chance() * 1.2)), 1.6);
-    voice.energy = voice.energy * 0.25 + (0.12 + 0.88 * shape) * voice.loud * 0.78;
-    if (voice.word === 0) voice.gap = 1 + Math.floor(chance() * 2);
-    return Math.min(1, voice.energy);
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
   }
 
-  function drawWave() {
-    for (var i = 0; i < bars.length; i += 1) {
-      bars[i].style.height = (3 + levels[i] * 22).toFixed(1) + "px";
+  function track(sample) {
+    if (!voice) {
+      voice = new Audio();
+      voice.preload = "auto";
     }
-  }
-
-  function startWave() {
-    stopWave();
-    heard = Date.now();
-    for (var i = 0; i < levels.length; i += 1) levels[i] = 0;
-    drawWave();
-    ui.time.textContent = "0:00";
-    waveTimer = setInterval(function () {
-      levels.shift();
-      levels.push(level());
-      drawWave();
-      var seconds = Math.floor((Date.now() - heard) / 1000);
-      ui.time.textContent = Math.floor(seconds / 60) + ":" + (seconds % 60 < 10 ? "0" : "") + (seconds % 60);
-    }, 75);
-  }
-
-  function stopWave() {
-    if (waveTimer) clearInterval(waveTimer);
-    waveTimer = null;
+    if (voice.getAttribute("src") !== sample.audio) voice.src = sample.audio;
+    return voice;
   }
 
   function phase(name) {
@@ -2918,7 +2927,101 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     });
   }
 
+  function drawWave() {
+    for (var i = 0; i < bars.length; i += 1) {
+      bars[i].style.height = (3 + levels[i] * 22).toFixed(1) + "px";
+    }
+  }
+
+  // Seconds into the recording. With sound the audio is the clock, so the words can never drift
+  // from the voice; without sound a timer stands in for it.
+  function clock() {
+    if (!take || take.waiting) return 0;
+    if (take.audio) return take.audio.currentTime;
+    return (performance.now() - take.start) / 1000;
+  }
+
+  function tick() {
+    if (!take) return;
+    take.frame = 0;
+    var t = clock();
+    var sample = take.sample;
+    while (take.shown < sample.at.length && t >= sample.at[take.shown]) {
+      var word = document.createElement("span");
+      word.className = "w";
+      word.textContent = take.words[take.shown];
+      if (take.shown) ui.text.appendChild(document.createTextNode(" "));
+      ui.text.appendChild(word);
+      take.shown += 1;
+      if (take.shown === 1) phase("write");
+    }
+    var due = Math.floor(t / 0.05);
+    if (due - take.drawn > bars.length) take.drawn = due - bars.length;
+    if (due > take.drawn) {
+      while (take.drawn < due) {
+        var digit = take.drawn < sample.env.length ? Number(sample.env.charAt(take.drawn)) : 0;
+        levels.shift();
+        levels.push((digit / 9) * (0.55 + chance() * 0.45));
+        take.drawn += 1;
+      }
+      drawWave();
+    }
+    var seconds = Math.floor(t);
+    ui.time.textContent = Math.floor(seconds / 60) + ":" + (seconds % 60 < 10 ? "0" : "") + (seconds % 60);
+    if (!take.over && (t >= sample.length || (take.audio && take.audio.ended))) {
+      // The sentence is over. A key that is still held keeps the Flow Bar counting.
+      take.over = true;
+      take.audio = null;
+      take.start = performance.now() - t * 1000;
+      take.done();
+    }
+    take.frame = requestAnimationFrame(tick);
+  }
+
+  // Starts the recording and the words. The promise settles once the whole sentence was said.
+  function speak(sample) {
+    var current = (take = {
+      sample: sample,
+      words: sample.text.split(" "),
+      shown: 0,
+      drawn: 0,
+      audio: null,
+      waiting: false,
+      start: performance.now(),
+      over: false,
+      frame: 0,
+      done: null
+    });
+    var finished = new Promise(function (resolve) { current.done = resolve; });
+    if (loud) {
+      var audio = track(sample);
+      current.waiting = true;
+      audio.currentTime = 0;
+      var started = audio.play();
+      var go = function (ok) {
+        if (take !== current) return;
+        current.audio = ok ? audio : null;
+        current.start = performance.now();
+        current.waiting = false;
+      };
+      if (started && started.then) started.then(function () { go(true); }, function () { go(false); });
+      else go(true);
+    }
+    current.frame = requestAnimationFrame(tick);
+    return finished;
+  }
+
+  function hush() {
+    if (!take) return;
+    if (take.frame) cancelAnimationFrame(take.frame);
+    take.frame = 0;
+    if (voice && !voice.paused) voice.pause();
+    take.over = true;
+    take = null;
+  }
+
   function pressed(sample) {
+    hush();
     listening = true;
     ui.key.classList.add("down");
     ui.toast.classList.remove("show");
@@ -2926,79 +3029,89 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     ui.meta.textContent = sample.meta;
     ui.text.textContent = "";
     ui.text.classList.remove("fresh");
+    ui.text.parentNode.dir = sample.chip === "AR" ? "rtl" : "ltr";
     ui.chip.textContent = sample.chip;
+    ui.time.textContent = "0:00";
+    for (var i = 0; i < levels.length; i += 1) levels[i] = 0;
+    drawWave();
     ui.bar.dataset.state = "rec";
     phase("hold");
-    startWave();
   }
 
-  function released(sample, mine) {
+  // The key comes up: whatever was said is pasted in one go, the way Navo does it.
+  function released() {
     listening = false;
     ui.key.classList.remove("down");
-    stopWave();
-    ui.work.textContent = "Transcribing…";
-    ui.bar.dataset.state = "work";
-    phase("write");
-    return wait(850, mine)
-      .then(function () {
-        ui.work.textContent = "Polishing…";
-        return wait(600, mine);
-      })
-      .then(function () {
-        // Pasted in one go, the way Navo does it: the whole sentence lands at the cursor.
-        ui.text.textContent = sample.text;
-        void ui.text.offsetWidth;
-        ui.text.classList.add("fresh");
-        ui.toast.classList.add("show");
-        ui.bar.dataset.state = "orb";
-        phase("paste");
-      });
+    var said = take ? take.shown : 0;
+    hush();
+    ui.bar.dataset.state = "orb";
+    if (!said) {
+      phase("");
+      return false;
+    }
+    Array.prototype.forEach.call(ui.text.querySelectorAll(".w"), function (word) {
+      word.classList.remove("w");
+    });
+    void ui.text.offsetWidth;
+    ui.text.classList.add("fresh");
+    ui.toast.classList.add("show");
+    phase("paste");
+    return true;
   }
 
-  function play() {
+  // now: start the voice at once, inside the click that asked for it.
+  function play(now) {
     var mine = (turn += 1);
     byHand = false;
+    if (!seen || document.hidden) {
+      wait(1000, mine).then(play);
+      return;
+    }
     var sample = samples[next % samples.length];
     next += 1;
     pressed(sample);
-    wait(700, mine)
+    var spoken = now ? speak(sample) : null;
+    wait(now ? 0 : 300, mine)
       .then(function () {
-        phase("listen");
-        return wait(2900, mine);
+        var said = spoken || speak(sample);
+        return new Promise(function (resolve) {
+          said.then(function () { if (mine === turn) resolve(); });
+        });
       })
       .then(function () {
-        return released(sample, mine);
+        return wait(350, mine);
       })
       .then(function () {
-        return wait(4200, mine);
+        released();
+        return wait(3800, mine);
       })
       .then(play);
   }
 
   function holdStart() {
     if (listening && byHand) return;
-    var mine = (turn += 1);
+    turn += 1;
     byHand = true;
+    setLoud(true);
     var sample = samples[next % samples.length];
     next += 1;
     pressed(sample);
-    ui.key.dataset.sample = String(next - 1);
-    wait(500, mine).then(function () {
-      if (listening) phase("listen");
-    });
+    // A held key keeps listening after the sentence ends, until it comes up.
+    speak(sample);
   }
 
   function holdEnd() {
     if (!listening || !byHand) return;
     var mine = (turn += 1);
-    var sample = samples[(Number(ui.key.dataset.sample) || 0) % samples.length];
-    released(sample, mine)
-      .then(function () {
-        return wait(7000, mine);
-      })
-      .then(function () {
-        if (!still) play();
-      });
+    var pasted = released();
+    wait(pasted ? 6000 : 2500, mine).then(function () {
+      if (!still) play();
+    });
+  }
+
+  function setLoud(on) {
+    loud = on;
+    ui.sound.setAttribute("aria-pressed", on ? "true" : "false");
   }
 
   if (ready) {
@@ -3032,6 +3145,29 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
       if (event.key === "Alt") holdEnd();
     });
     window.addEventListener("blur", holdEnd);
+    // Turning the sound on starts the next dictation with its voice; turning it off stops the voice.
+    ui.sound.addEventListener("click", function () {
+      setLoud(!loud);
+      if (loud && !(listening && byHand)) {
+        // Heard from its first word: a sentence already under way starts over with its voice.
+        if (listening) next -= 1;
+        play(true);
+      } else if (!loud && listening) {
+        turn += 1;
+        released();
+        if (!still) wait(2500, turn).then(play);
+      }
+    });
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(function (entries) {
+        seen = entries[entries.length - 1].isIntersecting;
+        if (!seen && !byHand && take && !take.over) {
+          turn += 1;
+          released();
+          wait(1000, turn).then(play);
+        }
+      }).observe(ui.stage);
+    }
   }
 
   apply(preferred());
@@ -3040,11 +3176,12 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     ui.app.textContent = samples[1].app;
     ui.meta.textContent = samples[1].meta;
     ui.text.textContent = samples[1].text;
+    ui.text.parentNode.dir = "rtl";
     next = 2;
   }
   if (ready && !still) {
     var first = turn;
-    wait(3200, first).then(play);
+    wait(2600, first).then(play);
   }
 })();
 </script>
