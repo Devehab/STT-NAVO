@@ -4,10 +4,140 @@ import ServiceManagement
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The parts of Settings, each with its own page.
+enum SettingsPane: String, CaseIterable, Identifiable {
+    case general
+    case dictation
+    case engines
+    case writing
+    case notetaker
+    case flowBar
+    case clipboard
+    case privacy
+    case storage
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general: return "General"
+        case .dictation: return "Dictation"
+        case .engines: return "Speech engines"
+        case .writing: return "Cleanup and AI"
+        case .notetaker: return "Notetaker and Transcribe"
+        case .flowBar: return "Flow Bar"
+        case .clipboard: return "Clipboard"
+        case .privacy: return "Privacy"
+        case .storage: return "History and storage"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .general: return "gearshape.fill"
+        case .dictation: return "mic.fill"
+        case .engines: return "waveform"
+        case .writing: return "sparkles"
+        case .notetaker: return "record.circle"
+        case .flowBar: return "capsule.bottomhalf.filled"
+        case .clipboard: return "doc.on.clipboard.fill"
+        case .privacy: return "hand.raised.fill"
+        case .storage: return "externaldrive.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .general: return .gray
+        case .dictation: return .red
+        case .engines: return .blue
+        case .writing: return .purple
+        case .notetaker: return .orange
+        case .flowBar: return .teal
+        case .clipboard: return .green
+        case .privacy: return .indigo
+        case .storage: return .brown
+        }
+    }
+
+    /// One sentence under the title: what the page is for.
+    var summary: String {
+        switch self {
+        case .general: return "What Navo needs on this Mac, the permissions, and how the text reaches your apps."
+        case .dictation: return "The key you hold to talk, the language, and what happens while you speak."
+        case .engines: return "The speech-to-text models on this Mac: download them, pick the one for dictation, and how much memory they use."
+        case .writing: return "Tidying up what you said, and the language models that summarize and rewrite."
+        case .notetaker: return "Meetings turned into text while they go on, and audio files turned into text."
+        case .flowBar: return "The small bar at the edge of the screen that shows you are dictating."
+        case .clipboard: return "Everything you copy, kept on this Mac so you can paste it again later."
+        case .privacy: return "Keep Navo out of screen sharing, and see for yourself that everything stays on this Mac."
+        case .storage: return "Your dictations and recordings: how long they are kept, and deleting them."
+        }
+    }
+}
+
+/// A Settings page's icon: a white symbol on a colored tile, as in System Settings.
+struct SettingsIcon: View {
+    let pane: SettingsPane
+    var size: CGFloat = 22
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
+            .fill(pane.color.gradient)
+            .frame(width: size, height: size)
+            .overlay(
+                Image(systemName: pane.icon)
+                    .font(.system(size: size * 0.52, weight: .semibold))
+                    .foregroundStyle(.white)
+            )
+    }
+}
+
+/// A switch with a line under it that says what it does.
+struct SettingToggle: View {
+    let title: String
+    let detail: String
+    @Binding var isOn: Bool
+
+    init(_ title: String, detail: String, isOn: Binding<Bool>) {
+        self.title = title
+        self.detail = detail
+        _isOn = isOn
+    }
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+/// A section title with its symbol.
+struct SectionTitle: View {
+    let title: String
+    let icon: String
+
+    init(_ title: String, _ icon: String) {
+        self.title = title
+        self.icon = icon
+    }
+
+    var body: some View {
+        Label(title, systemImage: icon)
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var engine: LocalEngineManager
     @EnvironmentObject private var store: HistoryStore
+    @EnvironmentObject private var router: HubRouter
 
     @State private var microphone = MicrophonePermission.status
     @State private var accessibility = TextInjector.isTrusted
@@ -38,22 +168,23 @@ struct SettingsView: View {
 
     private let permissionTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
+    private var pane: SettingsPane { router.settingsPane }
+
     var body: some View {
-        Form {
-            SetupSection(token: hfToken, permissionsGranted: microphone == .authorized && accessibility)
-            permissionsSection
-            shortcutSection
-            languageSection
-            engineSection
-            aiSection
-            localProofSection
-            cleanupSection
-            flowBarSection
-            outputSection
-            clipboardSection
-            historySections
+        HStack(spacing: 0) {
+            paneList
+                .frame(width: 244)
+            Divider()
+            VStack(alignment: .leading, spacing: 0) {
+                paneHeader
+                Form {
+                    paneContent
+                }
+                .formStyle(.grouped)
+                .id(pane) // each page starts at its top
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .formStyle(.grouped)
         .fileImporter(isPresented: $pickAudio, allowedContentTypes: [.audio]) { result in
             guard case .success(let url) = result else { return }
             let target = CompareTarget(audioURL: url, title: url.lastPathComponent, language: settings.language)
@@ -73,6 +204,107 @@ struct SettingsView: View {
             if mic != microphone { microphone = mic }
             let trusted = TextInjector.isTrusted
             if trusted != accessibility { accessibility = trusted }
+        }
+    }
+
+    // MARK: Pages
+
+    private var paneList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(SettingsPane.allCases) { item in
+                    Button {
+                        router.settingsPane = item
+                    } label: {
+                        HStack(spacing: 10) {
+                            SettingsIcon(pane: item, size: 24)
+                            Text(item.title)
+                                .font(.system(size: 13))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            if needsAttention(item) {
+                                Circle()
+                                    .fill(Color.orange)
+                                    .frame(width: 7, height: 7)
+                                    .help("Something here needs you")
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(item == pane ? Color.accentColor.opacity(0.18) : Color.clear)
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 14)
+        }
+        .background(Color.primary.opacity(0.025))
+    }
+
+    private var paneHeader: some View {
+        HStack(alignment: .center, spacing: 14) {
+            SettingsIcon(pane: pane, size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(pane.title)
+                    .font(.system(size: 22, weight: .semibold))
+                Text(pane.summary)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 28)
+        .padding(.top, 22)
+        .padding(.bottom, 4)
+    }
+
+    @ViewBuilder
+    private var paneContent: some View {
+        switch pane {
+        case .general:
+            SetupSection(token: hfToken, permissionsGranted: microphone == .authorized && accessibility)
+            permissionsSection
+            outputSection
+        case .dictation:
+            shortcutSection
+            languageSection
+        case .engines:
+            engineSection
+        case .writing:
+            cleanupSection
+            aiSection
+        case .notetaker:
+            notetakerSection
+            transcribeSection
+        case .flowBar:
+            flowBarSection
+        case .clipboard:
+            clipboardSection
+        case .privacy:
+            privateModeSection
+            localProofSection
+        case .storage:
+            historySections
+        }
+    }
+
+    /// A page where something is missing or broken.
+    private func needsAttention(_ item: SettingsPane) -> Bool {
+        switch item {
+        case .general:
+            return !engine.isInstalled || microphone != .authorized || !accessibility
+        case .engines:
+            if case .failed = engine.state { return true }
+            return false
+        default:
+            return false
         }
     }
 
@@ -103,7 +335,7 @@ struct SettingsView: View {
                 openSystemSettings("Privacy_Accessibility")
             }
         } header: {
-            Text("Permissions")
+            SectionTitle("Permissions", "lock.shield")
         } footer: {
             Text("After you rebuild Navo, macOS may ask for Accessibility again: remove Navo from the list and add it back.")
                 .foregroundStyle(.secondary)
@@ -119,10 +351,23 @@ struct SettingsView: View {
                     Text(key.title).tag(key)
                 }
             }
-            Toggle("Play sounds when recording starts and stops", isOn: $settings.playSounds)
-            Toggle("Show the text while you talk", isOn: $settings.liveDictation)
+            SettingToggle(
+                "Show the text while you talk",
+                detail: "The words appear in a small card above the Flow Bar as you speak, and long dictations are written as you go, so they are in almost as soon as you let go.",
+                isOn: $settings.liveDictation
+            )
+            SettingToggle(
+                "Keep talking while Navo writes",
+                detail: "Had another thought? Press the key again while the last part is still being written. Navo keeps writing in the background, listens again, and pastes everything together, in order, once it is all done.",
+                isOn: $settings.keepTalkingWhileProcessing
+            )
+            SettingToggle(
+                "Play sounds",
+                detail: "A short sound when recording starts and stops.",
+                isOn: $settings.playSounds
+            )
         } header: {
-            Text("Dictation")
+            SectionTitle("Dictation key", "keyboard")
         } footer: {
             Text(shortcutFooter)
                 .foregroundStyle(.secondary)
@@ -145,7 +390,7 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            Text("Language")
+            SectionTitle("Language", "globe")
         } footer: {
             Text(languageFooter)
                 .foregroundStyle(.secondary)
@@ -171,10 +416,7 @@ struct SettingsView: View {
     }
 
     private var shortcutFooter: String {
-        let live = settings.liveDictation
-            ? " While you talk, the text appears above the Flow Bar and long dictations are written as you go, so they are in almost as soon as you let go."
-            : ""
-        return keyFooter + live
+        keyFooter
     }
 
     private var keyFooter: String {
@@ -211,7 +453,7 @@ struct SettingsView: View {
             }
 
             ForEach(SpeechEngine.allCases) { speech in
-                SpeechEngineRow(speech: speech, token: hfToken)
+                SpeechEngineRow(speech: speech, token: $hfToken)
             }
 
             Picker("Free memory when idle", selection: Binding(
@@ -271,17 +513,17 @@ struct SettingsView: View {
             }
 
             DisclosureGroup("Advanced") {
-                TextField("Cohere model", text: $settings.asrModel)
-                TextField("Audar model", text: $settings.audarModel)
-                TextField("Whisper model", text: $settings.whisperModel)
-                TextField("Qwen3 model", text: $settings.qwen3Model)
+                ModelIDField(title: "Cohere model", value: $settings.asrModel, fallback: AppSettings.defaultASRModel)
+                ModelIDField(title: "Audar model", value: $settings.audarModel, fallback: SpeechEngine.audar.defaultModel)
+                ModelIDField(title: "Whisper model", value: $settings.whisperModel, fallback: SpeechEngine.whisper.defaultModel)
+                ModelIDField(title: "Qwen3 model", value: $settings.qwen3Model, fallback: SpeechEngine.qwen3.defaultModel)
                 TextField("Engine port", value: $settings.enginePort, format: .number.grouping(.never))
                 Text("Changes apply after Restart. Models load from the local Hugging Face cache; a new model needs Download or Reinstall.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("Speech engines, on this Mac")
+            SectionTitle("Speech engines, on this Mac", "waveform")
         } footer: {
             Text("Two engines can be on at once: the one marked Dictation, which is always on, and one more. Turn one off to turn another on. Models load only when they are needed: when you start talking, compare, or another app sends audio to \(settings.engineBaseURL.absoluteString)/cohere/v1, /audar/v1, /whisper/v1 or /qwen3/v1. After the idle time they leave memory and the engine sleeps at a few dozen MB. The first dictation after a sleep takes a few seconds longer.")
                 .foregroundStyle(.secondary)
@@ -323,7 +565,7 @@ struct SettingsView: View {
             }
             switch settings.cleanupMode {
             case .local:
-                TextField("Local model", text: $settings.localLLMModel)
+                ModelIDField(title: "Local model", value: $settings.localLLMModel, fallback: AppSettings.defaultLLMModel)
                 LabeledContent("Model status") {
                     Text(engine.llmLoaded != nil ? "Loaded" : (engine.llmAvailable ? "Downloaded" : "Not downloaded, run Reinstall"))
                         .foregroundStyle(.secondary)
@@ -335,7 +577,7 @@ struct SettingsView: View {
                 EmptyView()
             }
         } header: {
-            Text("Cleanup")
+            SectionTitle("Cleanup after each dictation", "wand.and.stars")
         } footer: {
             Text("Removes fillers and self-corrections and fixes punctuation, without translating or changing your dialect. If cleanup fails, Navo inserts the raw transcript instead.")
                 .foregroundStyle(.secondary)
@@ -376,7 +618,7 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            Text("Flow Bar")
+            SectionTitle("Flow Bar", "capsule.bottomhalf.filled")
         } footer: {
             Text("Move the pointer close to the bubble to open it. Drag its handle to the bottom, left or right edge of any screen. When it is hidden it still appears while you dictate, and hides again when the text is in.")
                 .foregroundStyle(.secondary)
@@ -387,10 +629,22 @@ struct SettingsView: View {
 
     private var outputSection: some View {
         Section {
-            Toggle("Paste into the active app automatically", isOn: $settings.autoPaste)
-            Toggle("Restore my clipboard after pasting", isOn: $settings.restoreClipboard)
-                .disabled(!settings.autoPaste)
-            Toggle("Open Navo at login", isOn: $launchAtLogin)
+            SettingToggle(
+                "Paste into the app you are using",
+                detail: "The text goes where your cursor is. Off: it is only copied, and you paste it with ⌘V.",
+                isOn: $settings.autoPaste
+            )
+            SettingToggle(
+                "Put my clipboard back after pasting",
+                detail: "Navo pastes through the clipboard; this restores what you had copied before.",
+                isOn: $settings.restoreClipboard
+            )
+            .disabled(!settings.autoPaste)
+            SettingToggle(
+                "Open Navo at login",
+                detail: "So the dictation key works as soon as you log in.",
+                isOn: $launchAtLogin
+            )
                 .onChange(of: launchAtLogin) { _, enabled in
                     setLaunchAtLogin(enabled)
                 }
@@ -400,7 +654,7 @@ struct SettingsView: View {
                     .foregroundStyle(.red)
             }
         } header: {
-            Text("Output")
+            SectionTitle("Text and startup", "text.cursor")
         }
     }
 
@@ -413,14 +667,14 @@ struct SettingsView: View {
             }
             WritingTestRow()
             DisclosureGroup("Advanced") {
-                TextField("Gemma model", text: $settings.gemmaModel)
-                TextField("Llama model", text: $settings.llamaModel)
+                ModelIDField(title: "Gemma model", value: $settings.gemmaModel, fallback: WritingModel.gemma.defaultModel)
+                ModelIDField(title: "Llama model", value: $settings.llamaModel, fallback: WritingModel.llama.defaultModel)
                 Text("Hugging Face ids or folders of MLX builds. Changes apply after Restart under Speech engines; a new model needs Download. A larger model can need more than 6 GB of memory.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("AI writing, on this Mac")
+            SectionTitle("AI writing, on this Mac", "sparkles")
         } footer: {
             Text("The AI button in Home, Notetaker and Transcribe summarizes a text or rewrites it as an email, a text message or a clean rewrite, in English or Arabic whatever the text is in. An open language model on this Mac writes it: the text never leaves the Mac, and it works with no internet.\n\nMemory: a language model and a speech model are never loaded together. When you ask for a summary the speech models step out of memory, the language model loads, writes and leaves again when you close the AI panel (or a minute after an answer); the speech model comes back the next time you dictate. A recording that is running keeps recording, and its live text waits until the summary is done. Each language model stays under 6 GB.\n\nOther apps can use them through the local API: \(settings.engineBaseURL.absoluteString)/gemma/v1 and /llama/v1 (docs/API-LLM.md).")
                 .foregroundStyle(.secondary)
@@ -445,7 +699,7 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            Text("Clipboard history")
+            SectionTitle("Clipboard history", "doc.on.clipboard")
         } footer: {
             Text("The shortcut opens the last 10 copies over the app you are in, like Spotlight: type to search them all, then Return, a click or ⌘1 to ⌘0 pastes. Shown in the Clipboard tab too. Plain text only, stored on this Mac. Starred items stay until you delete them. Copies from password managers are never kept, nor copies over \(ClipboardStore.maxCharacters.formatted()) characters; the newest \(ClipboardStore.maxItems.formatted()) items are kept. Turning this off keeps what is there; the Clipboard tab can clear it.")
                 .foregroundStyle(.secondary)
@@ -462,6 +716,80 @@ struct SettingsView: View {
             launchError = nil
         } catch {
             launchError = error.localizedDescription
+        }
+    }
+
+    // MARK: Private mode
+
+    private var privateModeSection: some View {
+        Section {
+            SettingToggle(
+                "Hide Navo from screen sharing and recordings",
+                detail: "When you share your screen or record it, the others do not see Navo: not this window, not the Flow Bar, not the text while you talk, not the clipboard list. You still see everything as usual.",
+                isOn: $settings.privateMode
+            )
+            if settings.privateMode {
+                Label("On. Navo's windows are left out of screen shares, screenshots and screen recordings.", systemImage: "eye.slash.fill")
+                    .font(.callout)
+                    .foregroundStyle(.green)
+            }
+        } header: {
+            SectionTitle("Private mode", "eye.slash")
+        } footer: {
+            Text("Works in apps that share or record the screen through macOS (Zoom, Google Meet, Microsoft Teams, Slack, QuickTime, the screenshot tool). The menu bar icon belongs to macOS's menu bar and still shows when the whole screen is shared. Also in the menu bar menu: Hide Navo from Screen Sharing.")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: Notetaker and Transcribe
+
+    private var notetakerSection: some View {
+        Section {
+            Picker("Record", selection: $settings.meetingSource) {
+                ForEach(MeetingSource.allCases) { source in
+                    Text(source.title).tag(source)
+                }
+            }
+            Picker("Turn it into text", selection: $settings.meetingTranscription) {
+                ForEach(MeetingTranscription.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            if settings.meetingTranscription == .live {
+                LabeledContent("How fast the text comes") {
+                    PieceLengthPicker()
+                }
+            }
+            Picker("Save the audio to disk every", selection: $settings.meetingPartMinutes) {
+                Text("3 minutes").tag(3)
+                Text("5 minutes").tag(5)
+            }
+        } header: {
+            SectionTitle("Notetaker", "record.circle")
+        } footer: {
+            Text("Live, as you speak: each sentence appears a moment after it is said, and the one being said shows in grey as it comes, so you can follow the meeting as it happens. The longer choices write bigger parts at once. Saving the audio in parts means a crash or a full disk loses at most a few minutes.")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var transcribeSection: some View {
+        Section {
+            LabeledContent("Engine and language") {
+                TranscriptionOptions(pieceLabel: nil)
+            }
+            LabeledContent("Show the text") {
+                PieceLengthPicker()
+            }
+            SettingToggle(
+                "Transcribe files as soon as they are added",
+                detail: "Files you add, paste or share to Navo are turned into text right away. Off: press Transcribe on each one.",
+                isOn: $settings.autoTranscribeImports
+            )
+        } header: {
+            SectionTitle("Transcribe and long recordings", "tray.and.arrow.down")
+        } footer: {
+            Text("Notetaker and Transcribe share the engine, the language and how fast the text comes. Live on a file shows new text every few seconds while it is written.")
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -517,7 +845,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("Proof it runs on this Mac")
+            SectionTitle("Proof it runs on this Mac", "checkmark.shield")
         } footer: {
             Text("Quickest test: turn Wi-Fi off and dictate. In Activity Monitor the engine is two Python processes with the numbers shown above: a small gateway that is always there, and the models process, which exists only while models are in memory. Their Memory columns add up to Engine memory.")
                 .foregroundStyle(.secondary)
@@ -554,7 +882,11 @@ struct SettingsView: View {
                 Text("\(store.audioFileCount) files, \(ProcessMemory.formatFile(store.audioBytes))")
                     .foregroundStyle(.secondary)
             }
-            Toggle("Keep recordings for playback and re-transcription", isOn: $settings.keepAudio)
+            SettingToggle(
+                "Keep the recordings",
+                detail: "To play a dictation back or transcribe it again later. Off: each recording is erased as soon as it is transcribed.",
+                isOn: $settings.keepAudio
+            )
             Picker("Keep recordings for", selection: retentionBinding(isText: false)) {
                 ForEach(Self.retentionChoices, id: \.self) { days in
                     Text(retentionLabel(days)).tag(days)
@@ -566,7 +898,7 @@ struct SettingsView: View {
                 }
             }
         } header: {
-            Text("History and recordings")
+            SectionTitle("History and recordings", "clock.arrow.circlepath")
         } footer: {
             Text("Recordings are WAV files in ~/Library/Application Support/Navo/Audio. With Keep recordings off, each recording is erased right after it is transcribed. Automatic cleanup runs at launch and every hour.")
                 .foregroundStyle(.secondary)
@@ -622,7 +954,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("Delete history")
+            SectionTitle("Delete history", "trash")
         } footer: {
             Text("Deletion is permanent: recordings are erased from disk (not moved to the Trash) and deleted text is overwritten inside the database file, which is then compacted.")
                 .foregroundStyle(.secondary)
@@ -724,7 +1056,7 @@ struct SettingsView: View {
 
 private struct SpeechEngineRow: View {
     let speech: SpeechEngine
-    let token: String
+    @Binding var token: String
 
     @EnvironmentObject private var engine: LocalEngineManager
     @EnvironmentObject private var settings: AppSettings
@@ -735,6 +1067,11 @@ private struct SpeechEngineRow: View {
     private var noRoom: Bool { !settings.canEnable(speech) }
     private var noRoomText: String {
         "\(settings.enabledEnginesText) are on. Turn one of them off to use \(speech.shortName) (\(AppSettings.maxEnabledEngines) engines at most)."
+    }
+
+    /// A gated model that is not on this Mac: its token goes right here.
+    private var needsToken: Bool {
+        speech.isGated && info.map { !$0.downloaded } == true
     }
 
     private var color: Color {
@@ -784,6 +1121,16 @@ private struct SpeechEngineRow: View {
             Text(speech.summary)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+            if needsToken {
+                HStack(spacing: 8) {
+                    SecureField("Hugging Face token", text: $token, prompt: Text("hf_… a Read token, needed once to download"))
+                        .textFieldStyle(.roundedBorder)
+                    Link("Get a token", destination: URL(string: "https://huggingface.co/settings/tokens")!)
+                        .font(.caption)
+                    Link("Accept the terms", destination: speech.modelPage)
+                        .font(.caption)
+                }
+            }
             if engine.downloading == speech {
                 ProgressView(value: engine.installProgress)
                 Text(engine.installStatus)
@@ -813,11 +1160,11 @@ private struct SpeechEngineRow: View {
     private var controls: some View {
         if let info {
             if !info.downloaded {
-                Button(engine.downloading == speech ? "Downloading…" : "Download") {
+                Button(engine.downloading == speech ? "Downloading…" : "Download, \(SetupSection.gb(speech.downloadGB))") {
                     engine.download(speech, huggingFaceToken: token)
                 }
                 .disabled(engine.isBusy)
-                .help(speech.isGated ? "Needs the Hugging Face token below" : "Public model, no token needed")
+                .help(speech.isGated ? "Paste your Hugging Face token in the field under it first" : "Public model, no account or token needed")
             } else {
                 if !isDictation {
                     Button("Use for dictation") { engine.useForDictation(speech) }
@@ -1088,6 +1435,34 @@ private struct WritingTestRow: View {
                 message = error.localizedDescription
             }
             testing = false
+        }
+    }
+}
+
+/// A model id field that says when what is typed can't be a model (for example text dictated into
+/// it while it had the focus), and puts the default back.
+private struct ModelIDField: View {
+    let title: String
+    @Binding var value: String
+    let fallback: String
+
+    @EnvironmentObject private var settings: AppSettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                TextField(title, text: $value, prompt: Text(fallback))
+                if value != fallback {
+                    Button("Reset") { value = fallback }
+                        .buttonStyle(.link)
+                        .help("Back to \(fallback)")
+                }
+            }
+            if let problem = settings.modelIDProblem(value) {
+                Label(problem, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
         }
     }
 }

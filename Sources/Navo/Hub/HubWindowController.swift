@@ -39,17 +39,23 @@ enum HubSection: String, CaseIterable, Identifiable, Hashable {
 @MainActor
 final class HubRouter: ObservableObject {
     private static let key = "hubSection"
+    private static let paneKey = "settingsPane"
 
     @Published var section: HubSection? {
         didSet {
             if let section { UserDefaults.standard.set(section.rawValue, forKey: Self.key) }
         }
     }
+    /// The page Settings shows.
+    @Published var settingsPane: SettingsPane {
+        didSet { UserDefaults.standard.set(settingsPane.rawValue, forKey: Self.paneKey) }
+    }
     /// A recording or file to select once its tab shows (asked for from the menu bar).
     @Published var focusedSession: String?
 
     init() {
         section = HubSection(rawValue: UserDefaults.standard.string(forKey: Self.key) ?? "") ?? .home
+        settingsPane = SettingsPane(rawValue: UserDefaults.standard.string(forKey: Self.paneKey) ?? "") ?? .general
     }
 }
 
@@ -127,8 +133,9 @@ final class HubWindowController: NSObject, NSWindowDelegate {
         super.init()
     }
 
-    func show(section: HubSection? = nil, session: String? = nil) {
+    func show(section: HubSection? = nil, session: String? = nil, pane: SettingsPane? = nil) {
         if let section { router.section = section }
+        if let pane { router.settingsPane = pane }
         if let session { router.focusedSession = session }
         if window == nil { window = makeWindow() }
         store.reload()
@@ -150,6 +157,7 @@ final class HubWindowController: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.minSize = HubView.minimumSize
         window.delegate = self
+        ScreenPrivacy.apply(to: window)
 
         let root = HubView()
             .environmentObject(router)

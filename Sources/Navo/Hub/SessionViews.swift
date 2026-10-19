@@ -92,7 +92,7 @@ final class SessionPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
 /// (Record and Files tabs share them).
 struct TranscriptionOptions: View {
     /// The label for the piece length, or nil to leave it out.
-    var pieceLabel: String? = "Text every"
+    var pieceLabel: String? = "Text"
 
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var engine: LocalEngineManager
@@ -163,19 +163,25 @@ struct PieceLengthPicker: View {
     var body: some View {
         Picker("Piece length", selection: $settings.pieceSeconds) {
             ForEach(AppSettings.pieceChoices, id: \.self) { seconds in
-                Text(Self.title(seconds)).tag(seconds)
+                if seconds == 0 {
+                    Label(Self.title(seconds), systemImage: "bolt.fill").tag(seconds)
+                    Divider()
+                } else {
+                    Text(Self.title(seconds)).tag(seconds)
+                }
             }
         }
         .labelsHidden()
         .fixedSize()
-        .help("Each piece ends in a pause, up to 10 seconds before or after this point, so no word is cut in two.")
+        .help("Live: a meeting's text appears a moment after each sentence, and the sentence being said shows as it comes. A file grows every few seconds. The other choices send longer pieces, each ending in a pause so no word is cut in two.")
     }
 
     static func title(_ seconds: Int) -> String {
         switch seconds {
-        case ..<60: return "\(seconds) seconds"
-        case 60: return "1 minute"
-        default: return "\(seconds / 60) minutes"
+        case ...0: return "Live, as you speak"
+        case ..<60: return "Every \(seconds) seconds"
+        case 60: return "Every minute"
+        default: return "Every \(seconds / 60) minutes"
         }
     }
 }

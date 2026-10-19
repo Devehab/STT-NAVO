@@ -199,33 +199,58 @@ struct LivePiece: Sendable {
     /// Too short or too quiet to hold speech: nothing to send.
     let silent: Bool
     let problem: String?
+    /// Live: the phrase still being said, sent for a preview line only. A later piece replaces it.
+    var preview = false
 }
 
 /// Mixes the tracks as they are written and cuts the mix into pieces at pauses. Writer queue only.
+/// With Live (`pieceSeconds` 0) each piece is one spoken phrase, and about every second the
+/// phrase still being said goes out too, for a preview line.
 private final class LiveFeed {
+    private static let previewEvery = SpeechAudio.sampleRate
+    private static let shortestPreview = SpeechAudio.sampleRate * 4 / 5
+
     private let mixer: TrackMixer
-    private let cutter: PieceCutter
+    private let cutter: PieceCutter?
+    private let phrases: PhraseCutter?
     private let directory: URL
     private let deliver: @Sendable (LivePiece) -> Void
+    private var sincePreview = 0
+    private var previews = 0
 
     init(tracks: [RecordingTrack], pieceSeconds: Double, directory: URL, deliver: @escaping @Sendable (LivePiece) -> Void) {
         mixer = TrackMixer(tracks: tracks)
-        cutter = PieceCutter(targetSeconds: pieceSeconds)
+        if pieceSeconds <= 0 {
+            cutter = nil
+            phrases = PhraseCutter()
+        } else {
+            cutter = PieceCutter(targetSeconds: pieceSeconds)
+            phrases = nil
+        }
         self.directory = directory
         self.deliver = deliver
     }
 
     func add(_ samples: [Float], track: RecordingTrack) {
-        for piece in cutter.append(mixer.append(samples, to: track)) {
+        let mixed = mixer.append(samples, to: track)
+        guard !mixed.isEmpty else { return }
+        for piece in (phrases?.append(mixed) ?? cutter?.append(mixed) ?? []) {
             save(piece)
+        }
+        guard phrases != nil else { return }
+        sincePreview += mixed.count
+        if sincePreview >= Self.previewEvery {
+            sincePreview = 0
+            sendPreview()
         }
     }
 
     /// Hands out what is buffered now (at a pause or at the end), without waiting for a full piece.
     func flush() {
-        if let piece = cutter.finish() {
+        if let piece = phrases?.finish() ?? cutter?.finish() {
             save(piece)
         }
+        sincePreview = 0
     }
 
     private func save(_ piece: PieceCutter.Piece) {
@@ -242,6 +267,24 @@ private final class LiveFeed {
             deliver(LivePiece(index: piece.index, start: piece.startSeconds, end: piece.endSeconds,
                               url: nil, silent: false, problem: "Could not save this piece: \(error.localizedDescription)"))
         }
+    }
+
+    private func sendPreview() {
+        guard let current = phrases?.current,
+              current.samples.count >= Self.shortestPreview, !SmartCut.isSilent(current.samples)
+        else { return }
+        let (start, samples) = current
+        previews += 1
+        let url = directory.appendingPathComponent(String(format: "preview-%05d.wav", previews))
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try WAVWriter.write(samples: samples, sampleRate: SpeechAudio.sampleRate, to: url)
+        } catch {
+            return // a preview is optional: the phrase comes in full when it ends
+        }
+        let rate = Double(SpeechAudio.sampleRate)
+        deliver(LivePiece(index: -1, start: Double(start) / rate, end: Double(start + samples.count) / rate,
+                          url: url, silent: false, problem: nil, preview: true))
     }
 }
 

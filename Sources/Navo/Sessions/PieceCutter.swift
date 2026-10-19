@@ -62,6 +62,77 @@ final class PieceCutter {
     }
 }
 
+/// Cuts a live stream at the end of each spoken phrase, for meeting text that keeps up with the
+/// talk (Live). A phrase ends inside a real pause once it is `shortest` long, found the same way
+/// as every other cut so a word is never split; when nobody pauses, it is cut at the quietest
+/// moment once it reaches `longest`. Holds at most one phrase and the few seconds before it.
+final class PhraseCutter {
+    static let shortest = 2.0
+    static let pause = 0.3
+    static let longest = 12.0
+    /// New audio between two looks for a pause.
+    private static let lookEvery = SmartCut.sampleRate / 4
+
+    /// The audio just before the phrase, so the background level is measured the same way at its start.
+    private var history: [Float] = []
+    private var buffer: [Float] = []
+    private var bufferStart = 0
+    private var nextIndex = 0
+    private var sinceLook = 0
+
+    /// Adds audio; returns the phrases that have ended.
+    func append(_ samples: [Float]) -> [PieceCutter.Piece] {
+        guard !samples.isEmpty else { return [] }
+        buffer.append(contentsOf: samples)
+        sinceLook += samples.count
+        guard sinceLook >= Self.lookEvery else { return [] }
+        sinceLook = 0
+        var pieces: [PieceCutter.Piece] = []
+        while let end = phraseEnd() {
+            pieces.append(take(end))
+        }
+        return pieces
+    }
+
+    /// The audio is over or paused: the phrase so far, as one piece.
+    func finish() -> PieceCutter.Piece? {
+        buffer.isEmpty ? nil : take(buffer.count)
+    }
+
+    /// The phrase being said now (for a preview line) and the sample where it starts.
+    var current: (start: Int, samples: [Float]) { (bufferStart, buffer) }
+
+    private func phraseEnd() -> Int? {
+        let rate = Double(SmartCut.sampleRate)
+        guard Double(buffer.count) >= (Self.shortest + 0.3) * rate else { return nil }
+        let audio = history + buffer
+        let offset = history.count
+        let lo = offset + Int(Self.shortest * rate)
+        let hi = audio.count - Int(0.15 * rate)
+        guard hi > lo else { return nil }
+        if let point = SmartCut.findPause(in: audio, lo: lo, hi: hi, target: hi, minimumSeconds: Self.pause) {
+            return point - offset
+        }
+        if Double(buffer.count) >= Self.longest * rate {
+            return SmartCut.findCut(in: audio, lo: lo, hi: hi, target: hi) - offset
+        }
+        return nil
+    }
+
+    private func take(_ count: Int) -> PieceCutter.Piece {
+        let count = max(1, min(count, buffer.count))
+        let piece = PieceCutter.Piece(index: nextIndex, start: bufferStart, samples: Array(buffer[0..<count]))
+        history.append(contentsOf: piece.samples)
+        if history.count > SmartCut.context {
+            history.removeFirst(history.count - SmartCut.context)
+        }
+        buffer.removeFirst(count)
+        bufferStart += count
+        nextIndex += 1
+        return piece
+    }
+}
+
 /// Mixes the tracks of a meeting recording as they are written, sample for sample and the same
 /// way the finished recording is mixed (summed, then clipped), so live pieces line up exactly
 /// with the saved file. Holds only the few buffers one track is ahead of the other.

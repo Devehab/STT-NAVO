@@ -11,6 +11,8 @@ struct TranscriptView: View {
     var following = false
     var placeholder = ""
     var footer: String?
+    /// Live: the sentence being said now, shown fainter after the text. It may still change.
+    var preview: String?
 
     private var shown: [SessionChunk] {
         chunks.filter { $0.text == nil || !($0.text ?? "").isEmpty }
@@ -20,13 +22,16 @@ struct TranscriptView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
-                    if shown.isEmpty && !placeholder.isEmpty {
+                    if shown.isEmpty && (preview ?? "").isEmpty && !placeholder.isEmpty {
                         Text(placeholder)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     ForEach(shown, id: \.index) { chunk in
                         TranscriptParagraph(chunk: chunk, showTime: showTimes)
+                    }
+                    if let preview, !preview.isEmpty {
+                        LivePreviewLine(text: preview, showTime: showTimes)
                     }
                     if let footer, !footer.isEmpty {
                         Text(footer)
@@ -50,10 +55,44 @@ struct TranscriptView: View {
                     proxy.scrollTo(Self.endID, anchor: .bottom)
                 }
             }
+            .onChange(of: chunks.last?.text) { _, _ in
+                // Live phrases grow the last paragraph without adding one.
+                guard following else { return }
+                proxy.scrollTo(Self.endID, anchor: .bottom)
+            }
+            .onChange(of: preview) { _, _ in
+                guard following else { return }
+                proxy.scrollTo(Self.endID, anchor: .bottom)
+            }
         }
     }
 
     private static let endID = "transcript-end"
+}
+
+/// The sentence still being said, in a live meeting.
+private struct LivePreviewLine: View {
+    let text: String
+    let showTime: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            if showTime {
+                Image(systemName: "waveform")
+                    .font(.system(size: 11))
+                    .foregroundStyle(navoBrandGradient)
+                    .frame(width: 48, alignment: .leading)
+            }
+            Text(text)
+                .font(.system(size: 14.5))
+                .lineSpacing(4)
+                .foregroundStyle(.secondary)
+                .italic()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .environment(\.layoutDirection, TextTools.isRightToLeft(text) ? .rightToLeft : .leftToRight)
+        }
+        .transition(.opacity)
+    }
 }
 
 private struct TranscriptParagraph: View {
@@ -268,8 +307,10 @@ struct OptionField<Content: View>: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Text(title)
-                .foregroundStyle(.secondary)
+            if !title.isEmpty {
+                Text(title)
+                    .foregroundStyle(.secondary)
+            }
             content
         }
         .fixedSize()

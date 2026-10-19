@@ -135,6 +135,7 @@ final class LocalEngineManager: ObservableObject {
         }
 
         let service: String?
+        let version: String?
         let defaultEngine: String?
         let engines: [EngineEntry]?
         let workerPid: Int32?
@@ -257,7 +258,7 @@ final class LocalEngineManager: ObservableObject {
     }
 
     var cleanupModelDownloaded: Bool {
-        isRunning ? llmAvailable : Self.isDownloaded(settings.localLLMModel)
+        isRunning ? llmAvailable : Self.isDownloaded(settings.cleanupModel)
     }
 
     /// Gemma 4 needs mlx-lm 0.32 or newer: an engine installed before that has to be updated
@@ -293,13 +294,16 @@ final class LocalEngineManager: ObservableObject {
         pollTask = Task { @MainActor [weak self] in
             guard let self else { return }
             // Reuse an engine that is already listening on the port (for example one started by hand),
-            // unless it is an older version that does not know every speech engine and language model.
+            // unless it is another version than the one in this app: an older one may not know
+            // every engine, or still have a bug this version fixes.
             let existing = await self.fetchHealth()
             guard !Task.isCancelled, !self.stopping else { return }
             if let health = existing, health.service == "navo-engine" {
                 let known = Set((health.engines ?? []).map(\.id))
                 let writers = Set((health.llms ?? []).map(\.id))
-                if SpeechEngine.allCases.allSatisfy({ known.contains($0.rawValue) }),
+                let sameVersion = Self.bundledVersion == nil || health.version == Self.bundledVersion
+                if sameVersion,
+                   SpeechEngine.allCases.allSatisfy({ known.contains($0.rawValue) }),
                    WritingModel.allCases.allSatisfy({ writers.contains($0.rawValue) }) {
                     self.apply(health)
                     self.poll()
@@ -383,6 +387,16 @@ final class LocalEngineManager: ObservableObject {
         return false
     }
 
+    /// The engine version inside this app (navo_engine/__init__.py).
+    private static let bundledVersion: String? = {
+        guard let source = Paths.engineSource,
+              let text = try? String(contentsOf: source.appendingPathComponent("navo_engine/__init__.py"), encoding: .utf8),
+              let line = text.split(separator: "\n").first(where: { $0.hasPrefix("__version__") })
+        else { return nil }
+        let parts = line.split(separator: "\"")
+        return parts.count >= 2 ? String(parts[1]) : nil
+    }()
+
     /// An engine from an earlier Navo version is listening on the port: stop it so the new one can start.
     private func replaceOutdatedEngine(pid: Int32?) async {
         guard let pid, pid > 1 else { return }
@@ -404,13 +418,13 @@ final class LocalEngineManager: ObservableObject {
             "--port", "\(settings.enginePort)",
             "--engines", settings.enabledEngines.map(\.rawValue).joined(separator: ","),
             "--default-engine", settings.dictationEngine.rawValue,
-            "--asr-model", settings.asrModel,
-            "--audar-model", settings.audarModel,
-            "--whisper-model", settings.whisperModel,
-            "--qwen3-model", settings.qwen3Model,
-            "--llm-model", settings.localLLMModel,
-            "--gemma-model", settings.gemmaModel,
-            "--llama-model", settings.llamaModel,
+            "--asr-model", settings.model(for: SpeechEngine.cohere),
+            "--audar-model", settings.model(for: SpeechEngine.audar),
+            "--whisper-model", settings.model(for: SpeechEngine.whisper),
+            "--qwen3-model", settings.model(for: SpeechEngine.qwen3),
+            "--llm-model", settings.cleanupModel,
+            "--gemma-model", settings.model(for: WritingModel.gemma),
+            "--llama-model", settings.model(for: WritingModel.llama),
             "--idle-minutes", "\(settings.idleMinutes)",
             "--parent-pid", "\(ProcessInfo.processInfo.processIdentifier)",
         ]
@@ -746,7 +760,7 @@ final class LocalEngineManager: ObservableObject {
         guard installer == nil, isInstalled else { return }
         downloadingCleanup = true
         cleanupDownloadError = nil
-        runDownload(model: settings.localLLMModel, label: "Downloading the cleanup model", token: nil) { [weak self] status in
+        runDownload(model: settings.cleanupModel, label: "Downloading the cleanup model", token: nil) { [weak self] status in
             guard let self else { return }
             self.downloadingCleanup = false
             if status == 0 {
@@ -896,7 +910,7 @@ final class LocalEngineManager: ObservableObject {
         environment["NAVO_SUPPORT_DIR"] = Paths.supportDir.path
         environment["NAVO_ASR_MODELS"] = settings.enabledEngines.map { settings.model(for: $0) }.joined(separator: " ")
         if settings.cleanupMode == .local {
-            environment["NAVO_LLM_MODEL"] = settings.localLLMModel
+            environment["NAVO_LLM_MODEL"] = settings.cleanupModel
         } else {
             environment["NAVO_SKIP_LLM"] = "1"
         }
@@ -960,7 +974,7 @@ final class LocalEngineManager: ObservableObject {
     private func repository(of model: DeletableModel) -> String {
         switch model {
         case .speech(let speech): return settings.model(for: speech)
-        case .cleanup: return settings.localLLMModel
+        case .cleanup: return settings.cleanupModel
         case .writing(let writing): return settings.model(for: writing)
         }
     }

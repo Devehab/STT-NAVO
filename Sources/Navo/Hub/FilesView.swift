@@ -51,7 +51,7 @@ struct FilesView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     TranscriptionOptions(pieceLabel: nil)
                     HStack(spacing: 20) {
-                        OptionField("Text every") { PieceLengthPicker() }
+                        OptionField("Text") { PieceLengthPicker() }
                         autoToggle
                     }
                 }

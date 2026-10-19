@@ -3,6 +3,15 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.14.0
+
+- **Audar downloads work again.** On a new Mac the download finished but Navo kept saying "not downloaded", because the newest Hugging Face library counts the files Navo skips on purpose as missing. The engine now checks the files on disk itself, and a download only says done once the engine can really find the model. Download Cohere with its token right in its row.
+- **Live text in Notetaker and Transcribe.** Pick Live, as you speak: each sentence appears a moment after it is said, cut at a pause so no word is split, and the sentence being said shows in grey as it comes. The 30 seconds to 5 minutes choices are still there. On a file, Live shows new text every few seconds.
+- **Keep talking while Navo writes.** Press the dictation key again while the last part is still being written: Navo keeps writing in the background, listens again, and pastes everything together, in order, once. Settings > Dictation.
+- **Private mode.** Navo's windows, the Flow Bar and the live text stay out of screen sharing, screenshots and screen recordings, while you still see them. Settings > Privacy, or Hide Navo from Screen Sharing in the menu bar.
+- **Settings in pages.** General, Dictation, Speech engines, Cleanup and AI, Notetaker and Transcribe, Flow Bar, Clipboard, Privacy, History and storage, each with an icon and a line that says what it is for, and a note under each switch.
+- **Model names are safe from dictation.** Text dictated into a model field by mistake no longer breaks the model: Navo uses the default and says so under the field, with Reset.
+
 ## 0.13.0
 
 - **See the words while you talk.** The text appears in a small card above the Flow Bar as you speak. Finished phrases are bright, the one you are saying is dimmer. Each phrase is transcribed when you pause, so a long dictation is in almost as soon as you let go. Short dictations are still transcribed again in one go, so accuracy is unchanged. Settings > Dictation > Show the text while you talk.

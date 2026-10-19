@@ -90,10 +90,16 @@ if [ -n "$SETFILE" ]; then
   "$SETFILE" -a C "$MOUNT" || true
 fi
 
-# 3. The window people see: icons, positions and background. Finder does this, so macOS may ask
-# once to let Terminal control Finder. Without it the disk image still works, it just looks plain.
+# 3. The window people see: icons, positions and background. The layout Finder saved for an
+# earlier disk image is kept in scripts/dmg/DS_Store (the volume name and the files are the same),
+# so it is copied in and nothing has to drive Finder. NAVO_DMG_FINDER=1 lays it out with Finder
+# again (macOS may ask once to let Terminal control Finder); copy the new .DS_Store over the
+# template to keep a changed layout.
 DISK="$(basename "$MOUNT")"
-if ! osascript >/dev/null <<APPLESCRIPT
+if [ -f "$ART/DS_Store" ] && [ "${NAVO_DMG_FINDER:-0}" != "1" ]; then
+  cp "$ART/DS_Store" "$MOUNT/.DS_Store"
+  echo "==> Window layout from scripts/dmg/DS_Store"
+elif ! osascript >/dev/null <<APPLESCRIPT
 tell application "Finder"
   tell disk "$DISK"
     open

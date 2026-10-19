@@ -36,6 +36,9 @@ final class SessionStore: ObservableObject {
 
     @Published private(set) var sessions: [Session] = []
     @Published private(set) var jobs: [String: Progress] = [:]
+    /// Live meeting text: the phrase being said right now, by session. Not saved: the phrase
+    /// comes in full once it ends, and replaces this.
+    @Published private(set) var livePreview: [String: String] = [:]
     @Published private(set) var lastError: String?
     /// Files being copied in right now.
     @Published private(set) var importing = 0
@@ -53,6 +56,12 @@ final class SessionStore: ObservableObject {
     private var tasks: [String: Task<Void, Never>] = [:]
     /// Live transcriptions: the recorder hands pieces in here while the meeting records.
     private var liveFeeds: [String: AsyncStream<LivePiece>.Continuation] = [:]
+    /// Live meetings cut at each phrase, and where their saved text ends (a preview of a phrase
+    /// that is saved already is out of date).
+    private var phraseSessions: Set<String> = []
+    private var liveSavedUpTo: [String: Double] = [:]
+    /// Live phrases are gathered into paragraphs of about this many seconds.
+    private static let paragraphSeconds = 30.0
     /// The file or recording being transcribed now. Live meeting text runs beside it.
     private var activeJob: String?
     private var queue: [QueuedJob] = []
@@ -128,6 +137,7 @@ final class SessionStore: ObservableObject {
         let speech = settings.jobEngineInUse
         let language = settings.jobLanguage(for: speech).rawValue
         let live = settings.meetingTranscription == .live
+        let phrases = settings.pieceSeconds <= 0
         let (stream, feed) = AsyncStream<LivePiece>.makeStream()
         var onPiece: (@Sendable (LivePiece) -> Void)?
         if live {
@@ -138,7 +148,7 @@ final class SessionStore: ObservableObject {
                 sessionID: id,
                 source: source,
                 partMinutes: settings.meetingPartMinutes,
-                livePieceSeconds: live ? Double(settings.pieceSeconds) : nil,
+                livePieceSeconds: live ? Double(max(0, settings.pieceSeconds)) : nil,
                 onPiece: onPiece
             )
         } catch {
@@ -162,19 +172,22 @@ final class SessionStore: ObservableObject {
             error: nil
         ))
         if live {
-            startLive(id, stream: stream, feed: feed, engine: speech, language: language)
+            startLive(id, stream: stream, feed: feed, engine: speech, language: language, phrases: phrases)
         } else {
             feed.finish()
         }
     }
 
     /// Transcribes the pieces the recorder hands out, one at a time, in order, while it records.
+    /// With `phrases` (Live), each piece is a spoken phrase, and between them the phrase being
+    /// said is sent for a preview whenever nothing else is waiting.
     private func startLive(
         _ id: String,
         stream: AsyncStream<LivePiece>,
         feed: AsyncStream<LivePiece>.Continuation,
         engine speech: SpeechEngine,
-        language: String
+        language: String,
+        phrases: Bool
     ) {
         if !settings.isEnabled(speech) {
             engine.setEnabled(speech, true)
@@ -183,12 +196,32 @@ final class SessionStore: ObservableObject {
         engine.wake(speech)
         liveFeeds[id] = feed
         jobs[id] = Progress(live: true)
+        if phrases { phraseSessions.insert(id) }
+        liveSavedUpTo[id] = 0
         let baseURL = engine.baseURL(for: speech)
         let store = self
+        let mailbox = LiveMailbox()
+        Task.detached(priority: .userInitiated) {
+            for await piece in stream {
+                await mailbox.push(piece)
+            }
+            await mailbox.close()
+        }
         tasks[id] = Task.detached(priority: .userInitiated) {
             let client = TranscriptionClient(baseURL: baseURL)
-            for await piece in stream {
+            while let piece = await mailbox.next() {
                 if Task.isCancelled { break }
+                if piece.preview {
+                    guard let url = piece.url else { continue }
+                    let text = try? await client.transcribe(fileURL: url, language: language).text
+                    try? FileManager.default.removeItem(at: url)
+                    if let text, !Task.isCancelled {
+                        await MainActor.run {
+                            store.livePreviewArrived(id, start: piece.start, text: text)
+                        }
+                    }
+                    continue
+                }
                 var chunk = SessionChunk(index: piece.index, start: piece.start, end: piece.end, text: nil, error: piece.problem)
                 if piece.silent {
                     chunk.text = ""
@@ -222,10 +255,18 @@ final class SessionStore: ObservableObject {
 
     private func liveChunkFinished(_ id: String, chunk: SessionChunk) {
         guard var current = session(id) else { return }
-        current.chunks.removeAll { $0.index == chunk.index }
-        current.chunks.append(chunk)
-        current.chunks.sort { $0.index < $1.index }
+        if phraseSessions.contains(id) {
+            addPhrase(chunk, to: &current)
+        } else {
+            current.chunks.removeAll { $0.index == chunk.index }
+            current.chunks.append(chunk)
+            current.chunks.sort { $0.index < $1.index }
+        }
         save(current)
+        liveSavedUpTo[id] = max(liveSavedUpTo[id] ?? 0, chunk.end)
+        if livePreview[id] != nil {
+            livePreview[id] = nil // the phrase it showed is saved now, or a newer one is
+        }
         var progress = jobs[id] ?? Progress(live: true)
         progress.partsDone = current.chunks.count
         progress.secondsDone = max(progress.secondsDone, chunk.end)
@@ -235,12 +276,44 @@ final class SessionStore: ObservableObject {
         jobs[id] = progress
     }
 
+    /// Live phrases join the paragraph before them until it is about `paragraphSeconds` long, so
+    /// the text reads in paragraphs and not one line per sentence. A phrase that failed is a part
+    /// of its own, so Continue can redo just that stretch later.
+    private func addPhrase(_ phrase: SessionChunk, to session: inout Session) {
+        let nextIndex = (session.chunks.map(\.index).max() ?? -1) + 1
+        if let phraseText = phrase.text, let last = session.chunks.last, let lastText = last.text,
+           phrase.end - last.start <= Self.paragraphSeconds {
+            var paragraph = last
+            paragraph.end = max(last.end, phrase.end)
+            paragraph.text = [lastText, phraseText].filter { !$0.isEmpty }.joined(separator: " ")
+            session.chunks[session.chunks.count - 1] = paragraph
+            return
+        }
+        var added = phrase
+        added.index = nextIndex
+        session.chunks.append(added)
+    }
+
+    /// The phrase being said, unless a phrase saved meanwhile already covers it.
+    private func livePreviewArrived(_ id: String, start: Double, text: String) {
+        guard liveFeeds[id] != nil, start >= (liveSavedUpTo[id] ?? 0) - 0.05 else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        livePreview[id] = trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func endLivePreview(_ id: String) {
+        livePreview[id] = nil
+        phraseSessions.remove(id)
+        liveSavedUpTo[id] = nil
+    }
+
     private func recordingFinished(_ finished: MeetingRecorder.Finished) {
         let id = finished.sessionID
         // Every piece is in the stream now: the live job finishes once it has sent them, then
         // removes their files. Finished first, so the job can never wait forever.
         let feed = liveFeeds.removeValue(forKey: id)
         feed?.finish()
+        livePreview[id] = nil
         guard var session = session(id) else { return }
         session.duration = finished.duration
         session.audioPath = finished.audioURL?.path
@@ -486,6 +559,7 @@ final class SessionStore: ObservableObject {
         if let feed = liveFeeds.removeValue(forKey: id) {
             recorder.stopLive()
             feed.finish()
+            livePreview[id] = nil
         }
         tasks[id]?.cancel()
     }
@@ -573,7 +647,7 @@ final class SessionStore: ObservableObject {
         }
         let baseURL = engine.baseURL(for: speech)
         let url = URL(fileURLWithPath: path)
-        let pieceSeconds = Double(settings.pieceSeconds)
+        let pieceSeconds = Double(settings.pieceSeconds > 0 ? settings.pieceSeconds : AppSettings.liveFilePieceSeconds)
         let remaining = max(0, session.duration - resumeAt)
         // Done so far: the audio before resumeAt, except the pieces that are redone now.
         let redone = retry.reduce(0) { $0 + max(0, $1.end - $1.start) }
@@ -627,6 +701,7 @@ final class SessionStore: ObservableObject {
     private func jobFinished(_ id: String, outcome: Outcome) {
         tasks[id] = nil
         jobs[id] = nil
+        endLivePreview(id)
         let wasActive = activeJob == id
         if wasActive {
             activeJob = nil
@@ -851,6 +926,63 @@ final class SessionStore: ObservableObject {
         recorder.closeForQuit()
         for task in tasks.values {
             task.cancel()
+        }
+    }
+}
+
+/// Hands the live job its next piece: finished pieces first, in order; when none is waiting, the
+/// newest preview (older previews are dropped, and a finished piece makes the preview before it
+/// out of date). The recorder fills it through the stream; one job empties it.
+private actor LiveMailbox {
+    private var pieces: [LivePiece] = []
+    private var preview: LivePiece?
+    private var closed = false
+    private var waiter: CheckedContinuation<LivePiece?, Never>?
+
+    func push(_ piece: LivePiece) {
+        if piece.preview {
+            drop(preview)
+            preview = piece
+        } else {
+            drop(preview)
+            preview = nil
+            pieces.append(piece)
+        }
+        wake()
+    }
+
+    func close() {
+        closed = true
+        wake()
+    }
+
+    /// The next piece, waiting for one; nil once the stream has ended and everything was handed out.
+    func next() async -> LivePiece? {
+        if let piece = take() { return piece }
+        if closed { return nil }
+        return await withCheckedContinuation { waiter = $0 }
+    }
+
+    private func take() -> LivePiece? {
+        if !pieces.isEmpty { return pieces.removeFirst() }
+        defer { preview = nil }
+        return preview
+    }
+
+    private func wake() {
+        guard let waiter else { return }
+        if let piece = take() {
+            self.waiter = nil
+            waiter.resume(returning: piece)
+        } else if closed {
+            self.waiter = nil
+            waiter.resume(returning: nil)
+        }
+    }
+
+    private func drop(_ piece: LivePiece?) {
+        if let url = piece?.url {
+            try? FileManager.default.removeItem(at: url)
         }
     }
 }

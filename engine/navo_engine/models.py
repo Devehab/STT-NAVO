@@ -73,12 +73,19 @@ def resolve_model_dir(model_id: str, allow_download: bool = False) -> Path:
     if local.exists():
         return local
 
+    # The files on disk decide, the same check the gateway makes. huggingface_hub 2 also compares
+    # an offline snapshot with the repo's full file list, where the files Navo skips on purpose
+    # (GGUF and vLLM builds) count as missing: a finished download looked "not downloaded".
+    found = cached_snapshot(model_id)
+    if found is not None:
+        return found
+
     from huggingface_hub import snapshot_download
 
     from .engines import ignore_patterns_for
 
     try:
-        path = Path(snapshot_download(model_id, local_files_only=True))
+        path = Path(snapshot_download(model_id, local_files_only=True, ignore_patterns=ignore_patterns_for(model_id)))
         if is_complete(path):
             return path
         missing = ModelNotDownloaded(

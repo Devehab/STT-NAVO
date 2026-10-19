@@ -192,8 +192,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: download failed: {exc}", file=sys.stderr, flush=True)
         return 4
 
+    # Say "done" only when the engine will find the model: the same check it makes before loading.
+    from .models import cached_snapshot
+
+    found = cached_snapshot(args.model)
+    if found is None:
+        print(
+            f"ERROR: the download of {args.model} finished, but its files are incomplete in {repo_cache_dir(args.model)}. "
+            "Click Download again: it continues where it stopped. If it keeps failing, check the free disk space.",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 4
     emit(args.progress_end, f"{args.label} done")
-    print(f"NAVO_MODEL_PATH {result[0]}", flush=True)
+    print(f"NAVO_MODEL_PATH {found}", flush=True)
     return 0
 
 

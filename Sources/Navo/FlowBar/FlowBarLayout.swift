@@ -112,6 +112,7 @@ final class FlowBarPanel: NSPanel {
         isReleasedWhenClosed = false
         becomesKeyOnlyIfNeeded = true
         animationBehavior = .none
+        sharingType = ScreenPrivacy.sharingType
     }
 
     override var canBecomeKey: Bool { false }

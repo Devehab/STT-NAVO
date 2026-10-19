@@ -190,9 +190,15 @@ final class AppSettings: ObservableObject {
         static let gemmaModel = "gemmaModel"
         static let llamaModel = "llamaModel"
         static let clipboardDays = "clipboardDays"
+        static let keepTalking = "keepTalkingWhileProcessing"
+        static let privateMode = "hideFromScreenSharing"
     }
 
-    static let pieceChoices = [30, 60, 120, 180, 300]
+    /// 0 is Live: text as you speak, a phrase at a time (see `livePieceSeconds`).
+    static let pieceChoices = [0, 30, 60, 120, 180, 300]
+    /// Live cuts a meeting at each spoken phrase. A file has no one speaking in real time, so
+    /// Live there means the shortest pieces: the text grows every few seconds.
+    static let liveFilePieceSeconds = 10
     /// Speech engines that can be on at once (the dictation engine counts). More would crowd
     /// the Mac's memory; the engine refuses a third one too.
     static let maxEnabledEngines = 2
@@ -221,6 +227,13 @@ final class AppSettings: ObservableObject {
 
     /// Transcribe while you talk and show the text above the Flow Bar.
     @Published var liveDictation: Bool { didSet { defaults.set(liveDictation, forKey: Key.liveDictation) } }
+    /// Pressing the dictation key while the last dictation is still being transcribed starts a new
+    /// one right away. Each is transcribed in the background, in order, and when the last one is
+    /// done they are pasted together, once.
+    @Published var keepTalkingWhileProcessing: Bool { didSet { defaults.set(keepTalkingWhileProcessing, forKey: Key.keepTalking) } }
+    /// Private mode: Navo's windows (the Hub, the Flow Bar, the live text, the clipboard list) stay
+    /// out of screen sharing, screenshots and screen recordings. You still see them.
+    @Published var privateMode: Bool { didSet { defaults.set(privateMode, forKey: Key.privateMode) } }
 
     /// Whether the Flow Bar shows its bubble when you are not dictating.
     var flowBarShowsWhenIdle: Bool {
@@ -319,6 +332,8 @@ final class AppSettings: ObservableObject {
             Key.playSounds: true,
             Key.flowBarAlwaysVisible: true,
             Key.liveDictation: true,
+            Key.keepTalking: true,
+            Key.privateMode: false,
             Key.flowBarEdge: FlowBarEdge.bottom.rawValue,
             Key.flowBarPosition: 0.5,
             Key.hasOnboarded: false,
@@ -358,6 +373,8 @@ final class AppSettings: ObservableObject {
         playSounds = defaults.bool(forKey: Key.playSounds)
         flowBarAlwaysVisible = defaults.bool(forKey: Key.flowBarAlwaysVisible)
         liveDictation = defaults.bool(forKey: Key.liveDictation)
+        keepTalkingWhileProcessing = defaults.bool(forKey: Key.keepTalking)
+        privateMode = defaults.bool(forKey: Key.privateMode)
         let hiddenUntil = defaults.double(forKey: Key.flowBarHiddenUntil)
         flowBarHiddenUntil = hiddenUntil > Date().timeIntervalSince1970 ? Date(timeIntervalSince1970: hiddenUntil) : nil
         flowBarEdge = FlowBarEdge(rawValue: defaults.string(forKey: Key.flowBarEdge) ?? "") ?? .bottom
@@ -403,6 +420,54 @@ final class AppSettings: ObservableObject {
         if !dictationEngine.languages.contains(language) { language = .ar }
         if !jobEngine.languages.contains(jobLanguage) { jobLanguage = .ar }
         keepWithinEngineLimit()
+        repairModelIDs()
+    }
+
+    // MARK: Model ids
+
+    /// A model setting as the engine needs it: a Hugging Face id ("owner/name") or a folder on
+    /// this Mac. Spaces and invisible direction marks around it are dropped. Anything else that is
+    /// not a valid id (text dictated into the field by mistake, for example) gives `fallback`, so
+    /// the engine never looks for a model that cannot exist.
+    nonisolated static func modelID(_ value: String, default fallback: String) -> String {
+        let invisible = CharacterSet(charactersIn: "\u{200B}\u{200C}\u{200D}\u{200E}\u{200F}\u{202A}\u{202B}\u{202C}\u{202D}\u{202E}\u{2066}\u{2067}\u{2068}\u{2069}\u{FEFF}")
+        let cleaned = String(String.UnicodeScalarView(value.unicodeScalars.filter { !invisible.contains($0) }))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.hasPrefix("/") || cleaned.hasPrefix("~") { return cleaned }
+        return isValidModelID(cleaned) ? cleaned : fallback
+    }
+
+    /// "owner/name" or "name", in the letters Hugging Face allows.
+    nonisolated static func isValidModelID(_ value: String) -> Bool {
+        value.range(of: "^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)?$", options: .regularExpression) != nil
+            && !value.contains("..") && !value.contains("--") && value.count <= 96 * 2 + 1
+    }
+
+    /// The setting as typed is not a model id the engine can use (shown under the field).
+    func modelIDProblem(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Empty: the default model is used." }
+        if trimmed.hasPrefix("/") || trimmed.hasPrefix("~") { return nil }
+        return Self.isValidModelID(trimmed) ? nil : "Not a model id (it looks like owner/name): the default model is used. Reset puts the default back."
+    }
+
+    /// The cleanup model the engine runs.
+    var cleanupModel: String { Self.modelID(localLLMModel, default: Self.defaultLLMModel) }
+
+    /// Saved ids that can't be models (text dictated into a field while it had the focus) go back
+    /// to the default, so the models are found again.
+    private func repairModelIDs() {
+        func repair(_ value: String, _ fallback: String) -> String? {
+            let clean = Self.modelID(value, default: fallback)
+            return clean == value ? nil : clean
+        }
+        if let fixed = repair(asrModel, Self.defaultASRModel) { asrModel = fixed }
+        if let fixed = repair(audarModel, SpeechEngine.audar.defaultModel) { audarModel = fixed }
+        if let fixed = repair(whisperModel, SpeechEngine.whisper.defaultModel) { whisperModel = fixed }
+        if let fixed = repair(qwen3Model, SpeechEngine.qwen3.defaultModel) { qwen3Model = fixed }
+        if let fixed = repair(localLLMModel, Self.defaultLLMModel) { localLLMModel = fixed }
+        if let fixed = repair(gemmaModel, WritingModel.gemma.defaultModel) { gemmaModel = fixed }
+        if let fixed = repair(llamaModel, WritingModel.llama.defaultModel) { llamaModel = fixed }
     }
 
     /// More engines on than allowed (saved by hand, for example): the dictation engine stays,
@@ -502,17 +567,17 @@ final class AppSettings: ObservableObject {
 
     func model(for model: WritingModel) -> String {
         switch model {
-        case .gemma: return gemmaModel
-        case .llama: return llamaModel
+        case .gemma: return Self.modelID(gemmaModel, default: model.defaultModel)
+        case .llama: return Self.modelID(llamaModel, default: model.defaultModel)
         }
     }
 
     func model(for engine: SpeechEngine) -> String {
         switch engine {
-        case .cohere: return asrModel
-        case .audar: return audarModel
-        case .whisper: return whisperModel
-        case .qwen3: return qwen3Model
+        case .cohere: return Self.modelID(asrModel, default: Self.defaultASRModel)
+        case .audar: return Self.modelID(audarModel, default: engine.defaultModel)
+        case .whisper: return Self.modelID(whisperModel, default: engine.defaultModel)
+        case .qwen3: return Self.modelID(qwen3Model, default: engine.defaultModel)
         }
     }
 }

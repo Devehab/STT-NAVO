@@ -115,6 +115,7 @@ struct EngineStatusChip: View {
 
     var body: some View {
         Button {
+            router.settingsPane = .engines
             router.section = .settings
         } label: {
             HStack(spacing: 8) {

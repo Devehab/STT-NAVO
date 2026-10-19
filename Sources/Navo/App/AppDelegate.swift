@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var quickPaste: QuickPasteController!
     private var aiWriter: AIWriter!
     private var activity: MenuBarActivity!
+    private var screenPrivacy: ScreenPrivacy!
     private var statusItem: NSStatusItem!
     /// What the menu bar icon shows now, so it is only redrawn when that changes.
     private var drawnLook: MenuBarActivity.Look?
@@ -49,10 +50,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var languageItem: NSMenuItem!
     private var quickPasteItem: NSMenuItem!
     private var flowBarItem: NSMenuItem!
+    private var privateItem: NSMenuItem!
     private let flowBarMenu = NSMenu()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         settings = AppSettings.shared
+        // First, so no window is ever drawn into a screen share before it is hidden.
+        screenPrivacy = ScreenPrivacy(settings: settings)
         buildMainMenu()
 
         var openError: String?
@@ -90,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.showHub(section)
         }
         dictation.onNeedsSetup = { [weak self] in
-            self?.showHub(.settings)
+            self?.hub.show(section: .settings, pane: .general)
         }
 
         activity = MenuBarActivity(sessions: sessions)
@@ -134,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             || MicrophonePermission.status != .authorized
         if !settings.hasOnboarded || needsSetup {
             settings.hasOnboarded = true
-            showHub(.settings)
+            hub.show(section: .settings, pane: .general)
         }
     }
 
@@ -290,6 +294,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         flowBarItem = NSMenuItem(title: "Hide Flow Bar", action: nil, keyEquivalent: "")
         flowBarItem.submenu = flowBarMenu
         menu.addItem(flowBarItem)
+        privateItem = item("Hide Navo from Screen Sharing", #selector(togglePrivateMode), "")
+        privateItem.toolTip = "Private mode: Navo's windows stay out of screen sharing, screenshots and recordings. You still see them."
+        menu.addItem(privateItem)
         menu.addItem(.separator())
         engineItem.isEnabled = false
         menu.addItem(engineItem)
@@ -312,6 +319,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             dictateItem.title += "   (hold \(key.shortName))"
         }
         engineItem.title = "Local engine (\(settings.dictationEngine.shortName)): \(engine.state.label)"
+        privateItem.state = settings.privateMode ? .on : .off
         languageItem.title = "Dictation Language: \(settings.language.name)"
         // Shows the shortcut on the right, as menus do.
         if quickPaste.shortcutProblem == nil, let keys = settings.clipboardShortcut?.menuKey {
@@ -520,6 +528,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openDictionary() {
         showHub(.dictionary)
+    }
+
+    @objc private func togglePrivateMode() {
+        settings.privateMode.toggle()
     }
 
     @objc private func openSettings() {

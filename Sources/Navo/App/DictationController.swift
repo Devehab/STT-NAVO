@@ -59,6 +59,37 @@ final class DictationController: ObservableObject {
     private var live: LiveDictation?
     private var cancellables = Set<AnyCancellable>()
 
+    /// One dictation of a run. With "keep talking" on, the key can be pressed again while the last
+    /// dictation is still being transcribed: each one is transcribed in the background, in order,
+    /// and the run is pasted as one text when its last dictation is done.
+    private final class Segment {
+        let draft: Dictation
+        let samples: [Float]
+        let live: LiveDictation?
+        var outcome: Outcome?
+
+        init(draft: Dictation, samples: [Float], live: LiveDictation?) {
+            self.draft = draft
+            self.samples = samples
+            self.live = live
+        }
+    }
+
+    private enum Outcome {
+        /// Transcribed and cleaned up; saved to the history when the run is pasted.
+        case text(Dictation)
+        /// No speech in it.
+        case empty
+        /// Kept in the history with its audio, to retry.
+        case failed(Dictation, String)
+    }
+
+    /// The dictations waiting to be pasted together, oldest first.
+    private var run: [Segment] = []
+    private var runWorker: Task<Void, Never>?
+    /// The live text of the dictation being recorded (or just stopped), without the run before it.
+    private var currentLive = LiveText()
+
     init(settings: AppSettings, engine: LocalEngineManager, store: HistoryStore) {
         self.settings = settings
         self.engine = engine
@@ -159,7 +190,10 @@ final class DictationController: ObservableObject {
                 phase = .recording(handsFree: true)
             }
         case .transcribing, .polishing:
-            return
+            // The last dictation goes on in the background; this one is added to it.
+            guard settings.keepTalkingWhileProcessing else { return }
+            pressedAt = Date()
+            beginRecording(handsFree: false)
         case .idle, .done, .failed:
             pressedAt = Date()
             beginRecording(handsFree: false)
@@ -214,7 +248,8 @@ final class DictationController: ObservableObject {
         case .recording:
             stopAndProcess()
         case .transcribing, .polishing:
-            return
+            guard settings.keepTalkingWhileProcessing else { return }
+            beginRecording(handsFree: true)
         default:
             beginRecording(handsFree: true)
         }
@@ -279,10 +314,15 @@ final class DictationController: ObservableObject {
         _ = recorder.stop()
         endLive()
         recordingStartedAt = nil
+        if !silently, settings.playSounds { Sounds.play(.cancel) }
+        // Dictations from before this one are still on their way: they are pasted without it.
+        guard run.isEmpty else {
+            runContinues()
+            return
+        }
         if silently {
             phase = .idle
         } else {
-            if settings.playSounds { Sounds.play(.cancel) }
             show(.done("Cancelled"))
         }
     }
@@ -301,13 +341,23 @@ final class DictationController: ObservableObject {
         if settings.playSounds { Sounds.play(.stop) }
 
         guard recording.duration >= 0.4 else {
-            liveText = LiveText()
-            phase = .idle
+            currentLive = LiveText()
+            if run.isEmpty {
+                liveText = LiveText()
+                phase = .idle
+            } else {
+                runContinues()
+            }
             return
         }
         guard recording.peakRMS >= Self.minimumSpeechRMS else {
-            liveText = LiveText()
-            show(.failed("No speech detected. Check your microphone."))
+            currentLive = LiveText()
+            if run.isEmpty {
+                liveText = LiveText()
+                show(.failed("No speech detected. Check your microphone."))
+            } else {
+                runContinues()
+            }
             return
         }
 
@@ -316,7 +366,11 @@ final class DictationController: ObservableObject {
         do {
             try WAVWriter.write(samples: recording.samples, sampleRate: Int(AudioRecorder.sampleRate), to: audioURL)
         } catch {
-            show(.failed("Could not save the recording: \(error.localizedDescription)"))
+            if run.isEmpty {
+                show(.failed("Could not save the recording: \(error.localizedDescription)"))
+            } else {
+                runContinues()
+            }
             return
         }
 
@@ -337,41 +391,157 @@ final class DictationController: ObservableObject {
             status: .ok,
             errorMessage: nil
         )
+        run.append(Segment(draft: draft, samples: recording.samples, live: live))
         phase = .transcribing
-        Task { @MainActor [weak self] in
-            // Most of a long dictation was transcribed while it was spoken: only the end is left.
-            let early = await live?.finish(samples: recording.samples)
-            await self?.process(draft, insertIntoApp: true, transcript: early)
+        startRunWorker()
+    }
+
+    // MARK: Runs of dictations
+
+    /// Transcribes the dictations of the run one after the other, while new ones may be recorded.
+    private func startRunWorker() {
+        guard runWorker == nil else { return }
+        runWorker = Task { @MainActor [weak self] in
+            while let self, let segment = self.run.first(where: { $0.outcome == nil }) {
+                // Most of a long dictation was transcribed while it was spoken: only the end is left.
+                let early = await segment.live?.finish(samples: segment.samples)
+                segment.outcome = await self.transcribe(segment.draft, early: early)
+                self.segmentFinished(segment)
+            }
+            self?.runWorker = nil
+            self?.deliverRunIfDone()
         }
+    }
+
+    private func segmentFinished(_ segment: Segment) {
+        // The text of the dictations already done stays in view while you go on talking.
+        if !phase.isRecording, run.last === segment {
+            currentLive = LiveText()
+        }
+        publishLiveText()
+    }
+
+    /// A recording ended without adding to the run: wait for the run, or paste it if it is done.
+    private func runContinues() {
+        currentLive = LiveText()
+        publishLiveText()
+        if run.allSatisfy({ $0.outcome != nil }) {
+            deliverRunIfDone()
+        } else {
+            phase = .transcribing
+        }
+    }
+
+    /// Pastes the run once every dictation in it is done and none is being recorded.
+    private func deliverRunIfDone() {
+        guard !run.isEmpty, !phase.isRecording, runWorker == nil, run.allSatisfy({ $0.outcome != nil }) else { return }
+        let segments = run
+        run = []
+        currentLive = LiveText()
+        liveText = LiveText()
+
+        var texts: [Dictation] = []
+        var failures: [(Dictation, String)] = []
+        for segment in segments {
+            switch segment.outcome {
+            case .text(let item): texts.append(item)
+            case .failed(let item, let message): failures.append((item, message))
+            case .empty, .none:
+                if let path = segment.draft.audioPath {
+                    try? FileManager.default.removeItem(atPath: path)
+                }
+            }
+        }
+        for (item, message) in failures {
+            var failed = item
+            failed.status = .failed
+            failed.errorMessage = message
+            store.save(failed) // keeps the audio so it can be retried from the history
+        }
+        guard !texts.isEmpty else {
+            if failures.isEmpty {
+                show(.failed("No speech detected"))
+            } else {
+                show(.failed("Transcription failed. Saved in History to retry."))
+            }
+            return
+        }
+        let item = texts.count == 1 ? texts[0] : merge(texts, segments: segments)
+        store.save(item)
+
+        let words = "\(item.wordCount) \(item.wordCount == 1 ? "word" : "words")"
+        let failedNote = failures.isEmpty ? "" : ", \(failures.count) part failed (in History)"
+        switch TextInjector.insert(item.cleanText, autoPaste: settings.autoPaste, restoreClipboard: settings.restoreClipboard) {
+        case .pasted:
+            show(.done(words + failedNote), seconds: failures.isEmpty ? nil : 3)
+        case .pastedAndCopied:
+            show(.done("\(words), also on the clipboard" + failedNote), seconds: 2.5)
+        case .copied(let message):
+            if settings.playSounds { Sounds.play(.cancel) }
+            show(.done(message), seconds: 5)
+        }
+    }
+
+    /// Several dictations of one run as one history item: their texts in order and, when the
+    /// audio is kept, one recording of them all.
+    private func merge(_ items: [Dictation], segments: [Segment]) -> Dictation {
+        var merged = items[0]
+        merged.duration = items.reduce(0) { $0 + $1.duration }
+        merged.rawText = items.map(\.rawText).joined(separator: " ")
+        merged.cleanText = items.map(\.cleanText).joined(separator: " ")
+        merged.language = TextTools.detectLanguage(merged.cleanText)
+        merged.wordCount = TextTools.wordCount(merged.cleanText)
+        merged.latencyMs = items.last?.latencyMs
+        let notes = Array(Set(items.compactMap(\.errorMessage)))
+        merged.errorMessage = notes.isEmpty ? nil : notes.joined(separator: " ")
+        let kept = Set(items.map(\.id))
+        if let path = merged.audioPath {
+            let samples = segments.filter { kept.contains($0.draft.id) }.flatMap(\.samples)
+            if (try? WAVWriter.write(samples: samples, sampleRate: Int(AudioRecorder.sampleRate), to: URL(fileURLWithPath: path))) == nil {
+                merged.audioPath = nil
+            }
+        }
+        for item in items.dropFirst() {
+            if let path = item.audioPath { try? FileManager.default.removeItem(atPath: path) }
+        }
+        return merged
     }
 
     /// Re-runs transcription on a saved recording from the history (for failed items or model changes).
     func retry(_ item: Dictation) {
-        guard !phase.isRecording, !phase.isBusy, item.hasAudio else { return }
+        guard !phase.isRecording, !phase.isBusy, run.isEmpty, item.hasAudio else { return }
         var draft = item
         draft.status = .ok
         draft.errorMessage = nil
         phase = .transcribing
         Task { @MainActor [weak self] in
-            await self?.process(draft, insertIntoApp: false)
+            guard let self else { return }
+            switch await self.transcribe(draft, early: nil) {
+            case .text(let done):
+                self.store.save(done)
+                TextInjector.copy(done.cleanText)
+                self.show(.done("Re-transcribed and copied"))
+            case .empty:
+                self.show(.failed("No speech detected"))
+            case .failed(let failed, let message):
+                self.fail(failed, message: message)
+            }
         }
     }
 
     // MARK: Pipeline
 
-    private func process(_ draft: Dictation, insertIntoApp: Bool, transcript early: TranscriptionClient.Result? = nil) async {
-        defer { liveText = LiveText() }
+    /// Transcribes one recording and cleans the text up. Nothing is saved or pasted here.
+    private func transcribe(_ draft: Dictation, early: TranscriptionClient.Result?) async -> Outcome {
         var item = draft
         let started = Date()
         guard let audioPath = item.audioPath else {
-            show(.failed("The recording file is missing"))
-            return
+            return .failed(item, "The recording file is missing")
         }
         let audioURL = URL(fileURLWithPath: audioPath)
 
         guard await engine.waitUntilReady(timeout: 120) else {
-            fail(item, message: engine.state.userMessage.isEmpty ? "The local engine is not ready" : engine.state.userMessage)
-            return
+            return .failed(item, engine.state.userMessage.isEmpty ? "The local engine is not ready" : engine.state.userMessage)
         }
 
         let speech = settings.dictationEngine
@@ -383,15 +553,11 @@ final class DictationController: ObservableObject {
                 result = try await TranscriptionClient(baseURL: engine.baseURL(for: speech))
                     .transcribe(fileURL: audioURL, language: settings.language.rawValue)
             }
-            guard !result.text.isEmpty else {
-                if insertIntoApp { try? FileManager.default.removeItem(at: audioURL) }
-                show(.failed("No speech detected"))
-                return
-            }
+            guard !result.text.isEmpty else { return .empty }
             item.rawText = result.text
             item.engine = speech.historyName + (result.backend.map { " (\($0))" } ?? "")
 
-            if settings.cleanupMode != .off { phase = .polishing }
+            if settings.cleanupMode != .off, !phase.isRecording { phase = .polishing }
             let cleanup = await CleanupService().clean(raw: result.text, config: cleanupConfig(), vocabulary: store.vocabulary)
             item.cleanText = cleanup.text
             item.cleanup = cleanup.mode
@@ -405,25 +571,9 @@ final class DictationController: ObservableObject {
                 try? FileManager.default.removeItem(at: audioURL)
                 item.audioPath = nil
             }
-            store.save(item)
-
-            if insertIntoApp {
-                let words = "\(item.wordCount) \(item.wordCount == 1 ? "word" : "words")"
-                switch TextInjector.insert(item.cleanText, autoPaste: settings.autoPaste, restoreClipboard: settings.restoreClipboard) {
-                case .pasted:
-                    show(.done(words))
-                case .pastedAndCopied:
-                    show(.done("\(words), also on the clipboard"), seconds: 2.5)
-                case .copied(let message):
-                    if settings.playSounds { Sounds.play(.cancel) }
-                    show(.done(message), seconds: 5)
-                }
-            } else {
-                TextInjector.copy(item.cleanText)
-                show(.done("Re-transcribed and copied"))
-            }
+            return .text(item)
         } catch {
-            fail(item, message: error.localizedDescription)
+            return .failed(item, error.localizedDescription)
         }
     }
 
@@ -438,7 +588,7 @@ final class DictationController: ObservableObject {
     private func cleanupConfig() -> CleanupConfig {
         switch settings.cleanupMode {
         case .local:
-            return CleanupConfig(mode: .local, baseURL: engine.chatBaseURL, model: settings.localLLMModel)
+            return CleanupConfig(mode: .local, baseURL: engine.chatBaseURL, model: settings.cleanupModel)
         case .custom:
             return CleanupConfig(mode: .custom, baseURL: URL(string: settings.customBaseURL), model: settings.customModel)
         case .off:
@@ -451,7 +601,8 @@ final class DictationController: ObservableObject {
     private func startLive() {
         live?.cancel()
         live = nil
-        liveText = LiveText()
+        currentLive = LiveText()
+        publishLiveText()
         guard settings.liveDictation else { return }
         let session = LiveDictation(recorder: recorder) { [weak self] url in
             guard let self else { throw CancellationError() }
@@ -461,7 +612,8 @@ final class DictationController: ObservableObject {
         }
         session.onChange = { [weak self, weak session] text in
             guard let self, let session, self.live === session else { return }
-            self.liveText = text
+            self.currentLive = text
+            self.publishLiveText()
         }
         live = session
         session.start()
@@ -470,7 +622,19 @@ final class DictationController: ObservableObject {
     private func endLive() {
         live?.cancel()
         live = nil
-        liveText = LiveText()
+        currentLive = LiveText()
+        publishLiveText()
+    }
+
+    /// The text above the Flow Bar: the dictations of the run that are done, then the one you are saying.
+    private func publishLiveText() {
+        let done = run.compactMap { segment -> String? in
+            if case .text(let item) = segment.outcome { return item.cleanText }
+            return nil
+        }
+        let settled = (done + [currentLive.settled]).filter { !$0.isEmpty }.joined(separator: " ")
+        let next = LiveText(settled: settled, preview: currentLive.preview)
+        if next != liveText { liveText = next }
     }
 
     // MARK: Helpers

@@ -342,6 +342,7 @@ final class QuickPastePanel: NSPanel {
         isReleasedWhenClosed = false
         becomesKeyOnlyIfNeeded = false
         animationBehavior = .none
+        sharingType = ScreenPrivacy.sharingType
 
         effect.material = .popover
         effect.blendingMode = .behindWindow

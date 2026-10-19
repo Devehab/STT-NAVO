@@ -11,7 +11,7 @@ protobuf
 soundfile
 librosa
 numpy
-huggingface_hub>=1.0
+huggingface_hub>=1.0,<3  # 2.x checks offline snapshots differently: see models.resolve_model_dir
 # Server (the gateway forwards to the model worker with httpx)
 fastapi>=0.110
 uvicorn>=0.30

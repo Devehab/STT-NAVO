@@ -97,7 +97,7 @@ struct RecordView: View {
     }
 
     private var pieceLabel: String? {
-        settings.meetingTranscription == .live ? "every" : nil
+        settings.meetingTranscription == .live ? "" : nil
     }
 
     private var textMode: some View {
@@ -217,8 +217,9 @@ private struct RecordingPanel: View {
                     chunks: session.chunks,
                     showTimes: true,
                     following: true,
-                    placeholder: "The first text appears after the first minute or so, cut at a pause.",
-                    footer: recorder.isLive && !session.chunks.isEmpty ? "The next part is on its way." : nil
+                    placeholder: placeholder,
+                    footer: footer(session),
+                    preview: recorder.isLive ? sessions.livePreview[session.id] : nil
                 )
             } else {
                 VStack(spacing: 8) {
@@ -248,12 +249,28 @@ private struct RecordingPanel: View {
         }
     }
 
+    private var isPhraseByPhrase: Bool { recorder.livePieceSeconds <= 0 }
+
+    private var placeholder: String {
+        isPhraseByPhrase
+            ? "Start talking: the text appears a moment after each sentence."
+            : "The first text appears after the first part, cut at a pause."
+    }
+
+    private func footer(_ session: Session) -> String? {
+        guard recorder.isLive, !session.chunks.isEmpty, !isPhraseByPhrase else { return nil }
+        return "The next part is on its way."
+    }
+
     private func liveLabel(_ session: Session) -> String {
         guard recorder.isLive else { return "Live text stopped. Continue transcribes the rest after you stop." }
         let engine = session.engine.map { SpeechEngine.from(historyName: $0).shortName } ?? ""
         let language = (DictationLanguage(rawValue: session.language) ?? .ar).name
-        let every = PieceLengthPicker.title(Int(recorder.livePieceSeconds))
-        return "Live text with \(engine), \(language), a new part about every \(every)."
+        if isPhraseByPhrase {
+            return "Live text with \(engine), \(language), sentence by sentence as people speak."
+        }
+        let every = PieceLengthPicker.title(Int(recorder.livePieceSeconds)).lowercased()
+        return "Live text with \(engine), \(language), a new part \(every)."
     }
 }
 
