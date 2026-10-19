@@ -36,9 +36,9 @@ final class SessionStore: ObservableObject {
 
     @Published private(set) var sessions: [Session] = []
     @Published private(set) var jobs: [String: Progress] = [:]
-    /// Live meeting text: the phrase being said right now, by session. Not saved: the phrase
-    /// comes in full once it ends, and replaces this.
-    @Published private(set) var livePreview: [String: String] = [:]
+    /// Live meeting text not final yet, by session: the phrases just said and the one being said.
+    /// Not saved: each paragraph is transcribed again as a whole, and that replaces them.
+    @Published private(set) var liveDraft: [String: LiveDraft] = [:]
     @Published private(set) var lastError: String?
     /// Files being copied in right now.
     @Published private(set) var importing = 0
@@ -56,12 +56,8 @@ final class SessionStore: ObservableObject {
     private var tasks: [String: Task<Void, Never>] = [:]
     /// Live transcriptions: the recorder hands pieces in here while the meeting records.
     private var liveFeeds: [String: AsyncStream<LivePiece>.Continuation] = [:]
-    /// Live meetings cut at each phrase, and where their saved text ends (a preview of a phrase
-    /// that is saved already is out of date).
-    private var phraseSessions: Set<String> = []
+    /// Where the saved (final) text of a live meeting ends: drafts before it are out of date.
     private var liveSavedUpTo: [String: Double] = [:]
-    /// Live phrases are gathered into paragraphs of about this many seconds.
-    private static let paragraphSeconds = 30.0
     /// The file or recording being transcribed now. Live meeting text runs beside it.
     private var activeJob: String?
     private var queue: [QueuedJob] = []
@@ -137,7 +133,6 @@ final class SessionStore: ObservableObject {
         let speech = settings.jobEngineInUse
         let language = settings.jobLanguage(for: speech).rawValue
         let live = settings.meetingTranscription == .live
-        let phrases = settings.pieceSeconds <= 0
         let (stream, feed) = AsyncStream<LivePiece>.makeStream()
         var onPiece: (@Sendable (LivePiece) -> Void)?
         if live {
@@ -172,22 +167,21 @@ final class SessionStore: ObservableObject {
             error: nil
         ))
         if live {
-            startLive(id, stream: stream, feed: feed, engine: speech, language: language, phrases: phrases)
+            startLive(id, stream: stream, feed: feed, engine: speech, language: language)
         } else {
             feed.finish()
         }
     }
 
-    /// Transcribes the pieces the recorder hands out, one at a time, in order, while it records.
-    /// With `phrases` (Live), each piece is a spoken phrase, and between them the phrase being
-    /// said is sent for a preview whenever nothing else is waiting.
+    /// Transcribes the pieces the recorder hands out, one at a time, while it records: the final
+    /// pieces in order (they are the transcript), and with Live, between them, the drafts and the
+    /// preview of what is being said (see LiveFeed).
     private func startLive(
         _ id: String,
         stream: AsyncStream<LivePiece>,
         feed: AsyncStream<LivePiece>.Continuation,
         engine speech: SpeechEngine,
-        language: String,
-        phrases: Bool
+        language: String
     ) {
         if !settings.isEnabled(speech) {
             engine.setEnabled(speech, true)
@@ -196,7 +190,6 @@ final class SessionStore: ObservableObject {
         engine.wake(speech)
         liveFeeds[id] = feed
         jobs[id] = Progress(live: true)
-        if phrases { phraseSessions.insert(id) }
         liveSavedUpTo[id] = 0
         let baseURL = engine.baseURL(for: speech)
         let store = self
@@ -211,13 +204,13 @@ final class SessionStore: ObservableObject {
             let client = TranscriptionClient(baseURL: baseURL)
             while let piece = await mailbox.next() {
                 if Task.isCancelled { break }
-                if piece.preview {
+                if piece.kind != .final {
                     guard let url = piece.url else { continue }
                     let text = try? await client.transcribe(fileURL: url, language: language).text
                     try? FileManager.default.removeItem(at: url)
                     if let text, !Task.isCancelled {
                         await MainActor.run {
-                            store.livePreviewArrived(id, start: piece.start, text: text)
+                            store.liveDraftArrived(id, piece: piece, text: text)
                         }
                     }
                     continue
@@ -234,6 +227,7 @@ final class SessionStore: ObservableObject {
                 if let url = piece.url {
                     try? FileManager.default.removeItem(at: url)
                 }
+                await mailbox.saved(upTo: piece.end)
                 await MainActor.run { [chunk] in
                     store.liveChunkFinished(id, chunk: chunk)
                 }
@@ -255,17 +249,15 @@ final class SessionStore: ObservableObject {
 
     private func liveChunkFinished(_ id: String, chunk: SessionChunk) {
         guard var current = session(id) else { return }
-        if phraseSessions.contains(id) {
-            addPhrase(chunk, to: &current)
-        } else {
-            current.chunks.removeAll { $0.index == chunk.index }
-            current.chunks.append(chunk)
-            current.chunks.sort { $0.index < $1.index }
-        }
+        current.chunks.removeAll { $0.index == chunk.index }
+        current.chunks.append(chunk)
+        current.chunks.sort { $0.index < $1.index }
         save(current)
         liveSavedUpTo[id] = max(liveSavedUpTo[id] ?? 0, chunk.end)
-        if livePreview[id] != nil {
-            livePreview[id] = nil // the phrase it showed is saved now, or a newer one is
+        // The final text of this stretch replaces its drafts.
+        if var draft = liveDraft[id] {
+            draft.removeBefore(chunk.end)
+            liveDraft[id] = draft.isEmpty ? nil : draft
         }
         var progress = jobs[id] ?? Progress(live: true)
         progress.partsDone = current.chunks.count
@@ -276,34 +268,30 @@ final class SessionStore: ObservableObject {
         jobs[id] = progress
     }
 
-    /// Live phrases join the paragraph before them until it is about `paragraphSeconds` long, so
-    /// the text reads in paragraphs and not one line per sentence. A phrase that failed is a part
-    /// of its own, so Continue can redo just that stretch later.
-    private func addPhrase(_ phrase: SessionChunk, to session: inout Session) {
-        let nextIndex = (session.chunks.map(\.index).max() ?? -1) + 1
-        if let phraseText = phrase.text, let last = session.chunks.last, let lastText = last.text,
-           phrase.end - last.start <= Self.paragraphSeconds {
-            var paragraph = last
-            paragraph.end = max(last.end, phrase.end)
-            paragraph.text = [lastText, phraseText].filter { !$0.isEmpty }.joined(separator: " ")
-            session.chunks[session.chunks.count - 1] = paragraph
-            return
-        }
-        var added = phrase
-        added.index = nextIndex
-        session.chunks.append(added)
-    }
-
-    /// The phrase being said, unless a phrase saved meanwhile already covers it.
-    private func livePreviewArrived(_ id: String, start: Double, text: String) {
-        guard liveFeeds[id] != nil, start >= (liveSavedUpTo[id] ?? 0) - 0.05 else { return }
+    /// A draft phrase or the preview came back: shown until the final text of its stretch arrives.
+    private func liveDraftArrived(_ id: String, piece: LivePiece, text: String) {
+        guard liveFeeds[id] != nil || tasks[id] != nil else { return }
+        let savedUpTo = liveSavedUpTo[id] ?? 0
+        guard piece.end > savedUpTo + 0.05 else { return } // its final text is in already
+        var draft = liveDraft[id] ?? LiveDraft()
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        livePreview[id] = trimmed.isEmpty ? nil : trimmed
+        if piece.kind == .preview {
+            guard piece.start >= (draft.phrases.last?.end ?? savedUpTo) - 0.05 else { return }
+            draft.preview = trimmed.isEmpty ? nil : LiveDraft.Phrase(start: piece.start, end: piece.end, text: trimmed)
+        } else {
+            if !trimmed.isEmpty {
+                draft.phrases.append(LiveDraft.Phrase(start: piece.start, end: piece.end, text: trimmed))
+                draft.phrases.sort { $0.start < $1.start }
+            }
+            if let preview = draft.preview, preview.start < piece.end - 0.05 {
+                draft.preview = nil // that phrase has ended and came in as a draft
+            }
+        }
+        liveDraft[id] = draft.isEmpty ? nil : draft
     }
 
-    private func endLivePreview(_ id: String) {
-        livePreview[id] = nil
-        phraseSessions.remove(id)
+    private func endLiveDraft(_ id: String) {
+        liveDraft[id] = nil
         liveSavedUpTo[id] = nil
     }
 
@@ -313,7 +301,6 @@ final class SessionStore: ObservableObject {
         // removes their files. Finished first, so the job can never wait forever.
         let feed = liveFeeds.removeValue(forKey: id)
         feed?.finish()
-        livePreview[id] = nil
         guard var session = session(id) else { return }
         session.duration = finished.duration
         session.audioPath = finished.audioURL?.path
@@ -559,7 +546,7 @@ final class SessionStore: ObservableObject {
         if let feed = liveFeeds.removeValue(forKey: id) {
             recorder.stopLive()
             feed.finish()
-            livePreview[id] = nil
+            liveDraft[id] = nil
         }
         tasks[id]?.cancel()
     }
@@ -701,7 +688,7 @@ final class SessionStore: ObservableObject {
     private func jobFinished(_ id: String, outcome: Outcome) {
         tasks[id] = nil
         jobs[id] = nil
-        endLivePreview(id)
+        endLiveDraft(id)
         let wasActive = activeJob == id
         if wasActive {
             activeJob = nil
@@ -930,25 +917,68 @@ final class SessionStore: ObservableObject {
     }
 }
 
-/// Hands the live job its next piece: finished pieces first, in order; when none is waiting, the
-/// newest preview (older previews are dropped, and a finished piece makes the preview before it
-/// out of date). The recorder fills it through the stream; one job empties it.
+/// Live meeting text that is not final yet: the phrases just said, and the one being said.
+struct LiveDraft: Equatable {
+    struct Phrase: Equatable {
+        let start: Double
+        let end: Double
+        let text: String
+    }
+
+    var phrases: [Phrase] = []
+    var preview: Phrase?
+
+    var isEmpty: Bool { phrases.isEmpty && preview == nil }
+
+    /// The phrases, then the one being said.
+    var text: String { phrases.map(\.text).joined(separator: " ") }
+
+    /// The final text has arrived up to `end`: what it covers goes.
+    mutating func removeBefore(_ end: Double) {
+        phrases.removeAll { $0.end <= end + 0.05 }
+        if let preview, preview.end <= end + 0.05 { self.preview = nil }
+    }
+}
+
+/// Hands the live job its next piece: the final pieces first, in order (they are the
+/// transcript); then the drafts, in order; then, when nothing else waits, the newest preview.
+/// A final piece makes the drafts and the preview it covers out of date, so they are dropped
+/// unsent. The recorder fills it through the stream; one job empties it.
 private actor LiveMailbox {
-    private var pieces: [LivePiece] = []
+    private var finals: [LivePiece] = []
+    private var drafts: [LivePiece] = []
     private var preview: LivePiece?
     private var closed = false
     private var waiter: CheckedContinuation<LivePiece?, Never>?
 
     func push(_ piece: LivePiece) {
-        if piece.preview {
+        switch piece.kind {
+        case .final:
+            finals.append(piece)
+        case .draft:
+            drafts.append(piece)
+            if let old = preview, old.start < piece.end {
+                drop(old)
+                preview = nil
+            }
+        case .preview:
             drop(preview)
             preview = piece
-        } else {
-            drop(preview)
-            preview = nil
-            pieces.append(piece)
         }
         wake()
+    }
+
+    /// The final text is in up to `end`.
+    func saved(upTo end: Double) {
+        drafts.removeAll { piece in
+            guard piece.end <= end + 0.05 else { return false }
+            drop(piece)
+            return true
+        }
+        if let old = preview, old.end <= end + 0.05 {
+            drop(old)
+            preview = nil
+        }
     }
 
     func close() {
@@ -964,7 +994,16 @@ private actor LiveMailbox {
     }
 
     private func take() -> LivePiece? {
-        if !pieces.isEmpty { return pieces.removeFirst() }
+        if !finals.isEmpty { return finals.removeFirst() }
+        if closed {
+            // The recording is over: only the final text is still needed.
+            drafts.forEach(drop)
+            drafts = []
+            drop(preview)
+            preview = nil
+            return nil
+        }
+        if !drafts.isEmpty { return drafts.removeFirst() }
         defer { preview = nil }
         return preview
     }

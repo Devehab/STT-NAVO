@@ -299,7 +299,7 @@ private struct ModelsTable: View {
             ) {
                 engine.downloadCleanupModel()
             }
-            ForEach(WritingModel.allCases) { model in
+            ForEach(WritingModel.builtIn) { model in
                 Divider()
                 ModelLine(
                     name: "\(model.title) (\(model.maker))",
@@ -335,11 +335,11 @@ private struct ModelsTable: View {
             downloaded += Self.cleanupGB
             count += 1
         }
-        for model in WritingModel.allCases where engine.isDownloaded(model) {
+        for model in WritingModel.builtIn where engine.isDownloaded(model) {
             downloaded += model.downloadGB
             count += 1
         }
-        let total = SpeechEngine.allCases.count + WritingModel.allCases.count + 1
+        let total = SpeechEngine.allCases.count + WritingModel.builtIn.count + 1
         return "\(count) of \(total) models are on this Mac, about \(SetupSection.gb(downloaded)). Two speech models can be on at once, and a language model never shares memory with a speech model."
     }
 }

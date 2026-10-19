@@ -675,7 +675,7 @@ class ASRService:
                     texts.append(text)
         finally:
             self.last_used = time.monotonic()
-        text = " ".join(texts)
+        text = " ".join(t.strip() for t in texts if t.strip())
         self.transcriptions += 1
         self.last_processing_ms = int((time.perf_counter() - started) * 1000)
         return text

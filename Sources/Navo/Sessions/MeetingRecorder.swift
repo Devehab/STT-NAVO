@@ -199,16 +199,33 @@ struct LivePiece: Sendable {
     /// Too short or too quiet to hold speech: nothing to send.
     let silent: Bool
     let problem: String?
-    /// Live: the phrase still being said, sent for a preview line only. A later piece replaces it.
-    var preview = false
+    /// What the piece is for. Live text comes in two passes: each phrase right after it is said
+    /// (a draft, shown at once), then every paragraph of about 20 seconds again as a whole (final,
+    /// saved), which is as accurate as transcribing the recording afterwards.
+    enum Kind: Sendable {
+        /// Saved as part of the transcript.
+        case final
+        /// A phrase just said: shown until the paragraph it is in comes in final.
+        case draft
+        /// The phrase still being said: shown until the next draft or final.
+        case preview
+    }
+
+    var kind: Kind = .final
 }
 
 /// Mixes the tracks as they are written and cuts the mix into pieces at pauses. Writer queue only.
-/// With Live (`pieceSeconds` 0) each piece is one spoken phrase, and about every second the
-/// phrase still being said goes out too, for a preview line.
+///
+/// With Live (`pieceSeconds` 0) the text comes in two passes. Each spoken phrase goes out as a
+/// draft as soon as it ends, and about every second the phrase still being said goes out as a
+/// preview, so the text keeps up with the talk. The phrases are gathered into paragraphs of about
+/// `paragraphSeconds`, each cut at a phrase's end (a pause), and every paragraph goes out again
+/// whole, as the final text: a model hears enough context in 20 seconds to be as accurate as when
+/// the recording is transcribed afterwards, which a few seconds alone are not.
 private final class LiveFeed {
     private static let previewEvery = SpeechAudio.sampleRate
     private static let shortestPreview = SpeechAudio.sampleRate * 4 / 5
+    static let paragraphSeconds = 18.0
 
     private let mixer: TrackMixer
     private let cutter: PieceCutter?
@@ -217,6 +234,11 @@ private final class LiveFeed {
     private let deliver: @Sendable (LivePiece) -> Void
     private var sincePreview = 0
     private var previews = 0
+    private var drafts = 0
+    /// Live: the audio of the paragraph being gathered, from sample `paragraphStart`.
+    private var paragraph: [Float] = []
+    private var paragraphStart = 0
+    private var paragraphs = 0
 
     init(tracks: [RecordingTrack], pieceSeconds: Double, directory: URL, deliver: @escaping @Sendable (LivePiece) -> Void) {
         mixer = TrackMixer(tracks: tracks)
@@ -234,10 +256,16 @@ private final class LiveFeed {
     func add(_ samples: [Float], track: RecordingTrack) {
         let mixed = mixer.append(samples, to: track)
         guard !mixed.isEmpty else { return }
-        for piece in (phrases?.append(mixed) ?? cutter?.append(mixed) ?? []) {
-            save(piece)
+        guard let phrases else {
+            for piece in cutter?.append(mixed) ?? [] {
+                save(piece)
+            }
+            return
         }
-        guard phrases != nil else { return }
+        for phrase in phrases.append(mixed) {
+            sendDraft(phrase)
+            gather(phrase)
+        }
         sincePreview += mixed.count
         if sincePreview >= Self.previewEvery {
             sincePreview = 0
@@ -247,10 +275,34 @@ private final class LiveFeed {
 
     /// Hands out what is buffered now (at a pause or at the end), without waiting for a full piece.
     func flush() {
-        if let piece = phrases?.finish() ?? cutter?.finish() {
-            save(piece)
-        }
         sincePreview = 0
+        guard phrases != nil else {
+            if let piece = cutter?.finish() {
+                save(piece)
+            }
+            return
+        }
+        if let last = phrases?.finish() {
+            gather(last, closing: true)
+        } else {
+            closeParagraph()
+        }
+    }
+
+    /// Adds a phrase to the paragraph, and sends the paragraph once it is long enough.
+    private func gather(_ phrase: PieceCutter.Piece, closing: Bool = false) {
+        if paragraph.isEmpty { paragraphStart = phrase.start }
+        paragraph.append(contentsOf: phrase.samples)
+        if closing || Double(paragraph.count) >= Self.paragraphSeconds * Double(SpeechAudio.sampleRate) {
+            closeParagraph()
+        }
+    }
+
+    private func closeParagraph() {
+        guard !paragraph.isEmpty else { return }
+        save(PieceCutter.Piece(index: paragraphs, start: paragraphStart, samples: paragraph))
+        paragraphs += 1
+        paragraph = []
     }
 
     private func save(_ piece: PieceCutter.Piece) {
@@ -269,22 +321,37 @@ private final class LiveFeed {
         }
     }
 
+    /// A phrase that just ended, for the draft text. Optional: the final pass covers it anyway.
+    private func sendDraft(_ phrase: PieceCutter.Piece) {
+        guard phrase.samples.count >= SpeechAudio.sampleRate / 2, !SmartCut.isSilent(phrase.samples) else { return }
+        drafts += 1
+        if let url = write(phrase.samples, name: String(format: "draft-%05d.wav", drafts)) {
+            deliver(LivePiece(index: -1, start: phrase.startSeconds, end: phrase.endSeconds,
+                              url: url, silent: false, problem: nil, kind: .draft))
+        }
+    }
+
     private func sendPreview() {
         guard let current = phrases?.current,
               current.samples.count >= Self.shortestPreview, !SmartCut.isSilent(current.samples)
         else { return }
-        let (start, samples) = current
         previews += 1
-        let url = directory.appendingPathComponent(String(format: "preview-%05d.wav", previews))
+        let rate = Double(SpeechAudio.sampleRate)
+        if let url = write(current.samples, name: String(format: "preview-%05d.wav", previews)) {
+            deliver(LivePiece(index: -1, start: Double(current.start) / rate, end: Double(current.start + current.samples.count) / rate,
+                              url: url, silent: false, problem: nil, kind: .preview))
+        }
+    }
+
+    private func write(_ samples: [Float], name: String) -> URL? {
+        let url = directory.appendingPathComponent(name)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try WAVWriter.write(samples: samples, sampleRate: SpeechAudio.sampleRate, to: url)
+            return url
         } catch {
-            return // a preview is optional: the phrase comes in full when it ends
+            return nil
         }
-        let rate = Double(SpeechAudio.sampleRate)
-        deliver(LivePiece(index: -1, start: Double(start) / rate, end: Double(start + samples.count) / rate,
-                          url: url, silent: false, problem: nil, preview: true))
     }
 }
 

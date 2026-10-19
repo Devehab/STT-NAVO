@@ -219,7 +219,7 @@ private struct RecordingPanel: View {
                     following: true,
                     placeholder: placeholder,
                     footer: footer(session),
-                    preview: recorder.isLive ? sessions.livePreview[session.id] : nil
+                    draft: recorder.isLive ? sessions.liveDraft[session.id] : nil
                 )
             } else {
                 VStack(spacing: 8) {
@@ -258,8 +258,13 @@ private struct RecordingPanel: View {
     }
 
     private func footer(_ session: Session) -> String? {
-        guard recorder.isLive, !session.chunks.isEmpty, !isPhraseByPhrase else { return nil }
-        return "The next part is on its way."
+        guard recorder.isLive else { return nil }
+        if isPhraseByPhrase {
+            return sessions.liveDraft[session.id] == nil
+                ? nil
+                : "Grey text is written as people speak. About every 20 seconds Navo listens to that stretch again as a whole and puts the final, more accurate text in its place."
+        }
+        return session.chunks.isEmpty ? nil : "The next part is on its way."
     }
 
     private func liveLabel(_ session: Session) -> String {

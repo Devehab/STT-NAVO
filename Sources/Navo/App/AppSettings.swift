@@ -191,6 +191,7 @@ final class AppSettings: ObservableObject {
         static let llamaModel = "llamaModel"
         static let clipboardDays = "clipboardDays"
         static let keepTalking = "keepTalkingWhileProcessing"
+        static let customModels = "customWritingModels"
         static let privateMode = "hideFromScreenSharing"
     }
 
@@ -293,6 +294,13 @@ final class AppSettings: ObservableObject {
     /// The language model on this Mac that writes summaries and rewrites, and each one's weights.
     @Published var writingModel: WritingModel { didSet { defaults.set(writingModel.rawValue, forKey: Key.writingModel) } }
     @Published var gemmaModel: String { didSet { defaults.set(gemmaModel, forKey: Key.gemmaModel) } }
+    /// Language models added from a folder already on this Mac (LM Studio's, for example).
+    @Published var customModels: [CustomModel] {
+        didSet {
+            CustomModels.set(customModels)
+            defaults.set((try? JSONEncoder().encode(customModels)) ?? Data(), forKey: Key.customModels)
+        }
+    }
     @Published var llamaModel: String { didSet { defaults.set(llamaModel, forKey: Key.llamaModel) } }
     /// Opens the quick list of recent copies from any app; nil turns it off.
     @Published var clipboardShortcut: KeyShortcut? {
@@ -409,6 +417,10 @@ final class AppSettings: ObservableObject {
         languageShortcut = Self.readLanguageShortcut(defaults)
         clipboardHistory = defaults.bool(forKey: Key.clipboardHistory)
         clipboardDays = Self.clipboardDayChoices.contains(defaults.integer(forKey: Key.clipboardDays)) ? defaults.integer(forKey: Key.clipboardDays) : 30
+        // Before the chosen model is read: it may be one of them.
+        let custom = defaults.data(forKey: Key.customModels).flatMap { try? JSONDecoder().decode([CustomModel].self, from: $0) } ?? []
+        CustomModels.set(custom)
+        customModels = custom
         writingModel = WritingModel(rawValue: defaults.string(forKey: Key.writingModel) ?? "") ?? .gemma
         gemmaModel = defaults.string(forKey: Key.gemmaModel) ?? WritingModel.gemma.defaultModel
         llamaModel = defaults.string(forKey: Key.llamaModel) ?? WritingModel.llama.defaultModel
@@ -569,7 +581,20 @@ final class AppSettings: ObservableObject {
         switch model {
         case .gemma: return Self.modelID(gemmaModel, default: model.defaultModel)
         case .llama: return Self.modelID(llamaModel, default: model.defaultModel)
+        default: return model.custom?.path ?? model.defaultModel
         }
+    }
+
+    /// Adds a model from a folder (replacing one with the same path).
+    func addCustomModel(_ model: CustomModel) {
+        customModels.removeAll { $0.path == model.path }
+        customModels.append(model)
+    }
+
+    /// Navo stops using it. Its files are never touched.
+    func removeCustomModel(_ id: String) {
+        if writingModel.rawValue == id { writingModel = .gemma }
+        customModels.removeAll { $0.id == id }
     }
 
     func model(for engine: SpeechEngine) -> String {

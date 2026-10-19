@@ -138,6 +138,7 @@ struct SettingsView: View {
     @EnvironmentObject private var engine: LocalEngineManager
     @EnvironmentObject private var store: HistoryStore
     @EnvironmentObject private var router: HubRouter
+    @EnvironmentObject private var ai: AIWriter
 
     @State private var microphone = MicrophonePermission.status
     @State private var accessibility = TextInjector.isTrusted
@@ -154,6 +155,7 @@ struct SettingsView: View {
     @State private var retentionChange: RetentionChange?
     @State private var pickAudio = false
     @State private var comparing: CompareTarget?
+    @State private var addingModel = false
 
     private struct RetentionChange: Identifiable {
         let id = UUID()
@@ -197,6 +199,12 @@ struct SettingsView: View {
             CompareSheet(target: target)
                 .environmentObject(engine)
                 .environmentObject(settings)
+        }
+        .sheet(isPresented: $addingModel) {
+            AddModelSheet()
+                .environmentObject(engine)
+                .environmentObject(settings)
+                .environmentObject(ai)
         }
         .onReceive(permissionTimer) { _ in
             // Only a real change redraws the page.
@@ -665,6 +673,18 @@ struct SettingsView: View {
             ForEach(WritingModel.allCases) { model in
                 WritingModelRow(model: model)
             }
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Use a model you already have")
+                    Text("From LM Studio or any folder, MLX or GGUF. Navo uses it where it is: nothing is downloaded twice.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Add a model…") { addingModel = true }
+                    .disabled(!engine.isInstalled)
+                    .help(engine.isInstalled ? "Pick one from LM Studio or choose a folder" : "Install the local engine first")
+            }
             WritingTestRow()
             DisclosureGroup("Advanced") {
                 ModelIDField(title: "Gemma model", value: $settings.gemmaModel, fallback: WritingModel.gemma.defaultModel)
@@ -676,7 +696,7 @@ struct SettingsView: View {
         } header: {
             SectionTitle("AI writing, on this Mac", "sparkles")
         } footer: {
-            Text("The AI button in Home, Notetaker and Transcribe summarizes a text or rewrites it as an email, a text message or a clean rewrite, in English or Arabic whatever the text is in. An open language model on this Mac writes it: the text never leaves the Mac, and it works with no internet.\n\nMemory: a language model and a speech model are never loaded together. When you ask for a summary the speech models step out of memory, the language model loads, writes and leaves again when you close the AI panel (or a minute after an answer); the speech model comes back the next time you dictate. A recording that is running keeps recording, and its live text waits until the summary is done. Each language model stays under 6 GB.\n\nOther apps can use them through the local API: \(settings.engineBaseURL.absoluteString)/gemma/v1 and /llama/v1 (docs/API-LLM.md).")
+            Text("The AI button in Home, Notetaker and Transcribe summarizes a text or rewrites it as an email, a text message or a clean rewrite, in English or Arabic whatever the text is in. An open language model on this Mac writes it: the text never leaves the Mac, and it works with no internet.\n\nMemory: a language model and a speech model are never loaded together. When you ask for a summary the speech models step out of memory, the language model loads, writes and leaves again when you close the AI panel (or a minute after an answer); the speech model comes back the next time you dictate. A recording that is running keeps recording, and its live text waits until the summary is done. Gemma and Llama stay under 6 GB; a model you add uses what its size needs.\n\nModels you add run where they are: an MLX folder on MLX, a GGUF file on llama.cpp (added to Navo's engine the first time). Removing one only takes it out of Navo; its files stay.\n\nOther apps can use them through the local API: \(settings.engineBaseURL.absoluteString)/gemma/v1, /llama/v1 and /custom-…/v1 for the ones you add (docs/API-LLM.md).")
                 .foregroundStyle(.secondary)
         }
     }
@@ -1318,6 +1338,9 @@ private struct WritingModelRow: View {
 
     private var statusLine: String {
         guard engine.isInstalled else { return "Install the local engine first." }
+        if model.isCustom && !downloaded {
+            return "Not found where it was added. Was it moved or deleted?"
+        }
         guard downloaded else { return "Not downloaded, \(SetupSection.gb(model.downloadGB))" }
         var parts = [info?.label ?? "Downloaded"]
         if let bytes = info?.modelBytes {
@@ -1347,8 +1370,20 @@ private struct WritingModelRow: View {
                         .padding(.vertical, 1)
                         .background(Capsule().fill(Color.accentColor.opacity(0.15)))
                 }
+                if let custom = model.custom {
+                    FormatBadge(format: custom.format)
+                }
                 Spacer()
-                if !downloaded {
+                if model.isCustom {
+                    if downloaded && !chosen {
+                        Button("Use for AI writing") { settings.writingModel = model }
+                    }
+                    Button("Remove") {
+                        settings.removeCustomModel(model.rawValue)
+                        engine.customModelsChanged()
+                    }
+                    .help("Navo stops using it. Its files stay where they are, in LM Studio or your folder.")
+                } else if !downloaded {
                     WritingDownloadButton(model: model)
                 } else if !chosen {
                     Button("Use for AI writing") { settings.writingModel = model }

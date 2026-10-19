@@ -66,6 +66,7 @@ from .llm import LLMService, LLMUnavailable  # noqa: E402
 from .llms import DEFAULT_KEEP_ALIVE, LLM_PROFILES, Completion, LanguageModel, PromptTooLong, lookup_llm  # noqa: E402
 from .options import (  # noqa: E402
     add_model_arguments,
+    apply_custom_llms,
     check_engine_limit,
     engine_list_arg,
     llm_overrides,
@@ -723,11 +724,28 @@ def build_engines(args: argparse.Namespace) -> dict[str, ASRService]:
 
 
 def build_llms(args: argparse.Namespace) -> dict[str, LanguageModel]:
+    from .custom import CUSTOM, gguf_generate, gguf_loader, memory_limit_for
+
     models = llm_overrides(args)
-    return {
-        profile.id: LanguageModel(profile, models[profile.id], context_tokens=args.llm_context)
-        for profile in LLM_PROFILES.values()
-    }
+    llms = {}
+    for profile in LLM_PROFILES.values():
+        custom = CUSTOM.get(profile.id)
+        if custom is None:
+            llms[profile.id] = LanguageModel(profile, models[profile.id], context_tokens=args.llm_context)
+        elif custom.format == "gguf":
+            llms[profile.id] = LanguageModel(
+                profile,
+                custom.path,
+                context_tokens=args.llm_context,
+                loader=gguf_loader(args.llm_context),
+                generator=gguf_generate,
+                custom=True,
+            )
+        else:
+            llms[profile.id] = LanguageModel(
+                profile, custom.path, context_tokens=args.llm_context, memory_limit=memory_limit_for(custom.path), custom=True
+            )
+    return llms
 
 
 def main(argv: Optional[list[str]] = None) -> None:
@@ -743,6 +761,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         help="Engines to load at startup (default: every engine that is on). 'none' loads nothing until a request",
     )
     args = parser.parse_args(argv)
+    apply_custom_llms(args)
     check_engine_limit(parser, args.engines)
 
     logging.basicConfig(

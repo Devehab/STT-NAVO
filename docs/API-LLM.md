@@ -387,6 +387,25 @@ Rules:
 
 `POST http://127.0.0.1:7861/v1/chat/completions` reaches a language model when `model` names one: `gemma`, `llama`, an alias such as `gemma-4-e4b-it` or `llama-3.1-8b`, or the Hugging Face id. With any other `model` value (or none) it reaches the small **cleanup model** (Qwen3 4B) that tidies each dictation, which is documented in [API.md](API.md#post-v1chatcompletions). The cleanup model lives on the speech side: it can be in memory together with a speech engine, and it leaves with them when a language model loads.
 
+## Models you add from a folder
+
+Settings > Cleanup and AI > Add a model uses a model that is already on the Mac, for example one
+LM Studio downloaded (`~/.lmstudio/models/<publisher>/<model>`). Nothing is copied: the engine reads
+the files where they are.
+
+* **MLX** folders (`config.json` and `.safetensors`) run on mlx-lm, like Gemma and Llama. A model
+  larger than 6 GB gets the memory its size needs.
+* **GGUF** files run on llama.cpp with Metal. The first time, Navo adds llama.cpp to its engine
+  (`engine/add-gguf.sh`, one ready-made package). In a GGUF folder the largest `.gguf` that is not
+  a vision projector (`mmproj-…`) is used, or the file you picked.
+
+Each one has its own API, the same as Gemma's: `POST /custom-…/v1/chat/completions`, where the id is
+listed in `GET /health` under `llms`. Running the engine yourself, pass them as JSON:
+
+```bash
+python -m navo_engine --custom-llms '[{"id": "custom-bonsai", "name": "Bonsai 27B", "path": "/Users/you/.lmstudio/models/prism-ml/Ternary-Bonsai-27B-mlx-2bit", "format": "mlx"}]'
+```
+
 ## Options when you run the engine yourself
 
 | Option | Default | Meaning |

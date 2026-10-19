@@ -11,8 +11,9 @@ struct TranscriptView: View {
     var following = false
     var placeholder = ""
     var footer: String?
-    /// Live: the sentence being said now, shown fainter after the text. It may still change.
-    var preview: String?
+    /// Live: the text not final yet (sentences just said and the one being said), shown fainter
+    /// after the final text. It is replaced by the final text of its stretch.
+    var draft: LiveDraft?
 
     private var shown: [SessionChunk] {
         chunks.filter { $0.text == nil || !($0.text ?? "").isEmpty }
@@ -22,7 +23,7 @@ struct TranscriptView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
-                    if shown.isEmpty && (preview ?? "").isEmpty && !placeholder.isEmpty {
+                    if shown.isEmpty && draft == nil && !placeholder.isEmpty {
                         Text(placeholder)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -30,8 +31,8 @@ struct TranscriptView: View {
                     ForEach(shown, id: \.index) { chunk in
                         TranscriptParagraph(chunk: chunk, showTime: showTimes)
                     }
-                    if let preview, !preview.isEmpty {
-                        LivePreviewLine(text: preview, showTime: showTimes)
+                    if let draft, !draft.isEmpty {
+                        LiveDraftLine(draft: draft, showTime: showTimes)
                     }
                     if let footer, !footer.isEmpty {
                         Text(footer)
@@ -60,7 +61,7 @@ struct TranscriptView: View {
                 guard following else { return }
                 proxy.scrollTo(Self.endID, anchor: .bottom)
             }
-            .onChange(of: preview) { _, _ in
+            .onChange(of: draft) { _, _ in
                 guard following else { return }
                 proxy.scrollTo(Self.endID, anchor: .bottom)
             }
@@ -70,10 +71,15 @@ struct TranscriptView: View {
     private static let endID = "transcript-end"
 }
 
-/// The sentence still being said, in a live meeting.
-private struct LivePreviewLine: View {
-    let text: String
+/// Live meeting text that is not final yet: the sentences just said in grey, and the one being
+/// said fainter still.
+private struct LiveDraftLine: View {
+    let draft: LiveDraft
     let showTime: Bool
+
+    private var all: String {
+        [draft.text, draft.preview?.text ?? ""].filter { !$0.isEmpty }.joined(separator: " ")
+    }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -82,14 +88,15 @@ private struct LivePreviewLine: View {
                     .font(.system(size: 11))
                     .foregroundStyle(navoBrandGradient)
                     .frame(width: 48, alignment: .leading)
+                    .help("Being written: the final text replaces it in a moment")
             }
-            Text(text)
+            (Text(draft.text).foregroundColor(.secondary)
+                + Text(draft.text.isEmpty || draft.preview == nil ? "" : " ")
+                + Text(draft.preview?.text ?? "").italic().foregroundColor(Color.secondary.opacity(0.6)))
                 .font(.system(size: 14.5))
                 .lineSpacing(4)
-                .foregroundStyle(.secondary)
-                .italic()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .environment(\.layoutDirection, TextTools.isRightToLeft(text) ? .rightToLeft : .leftToRight)
+                .environment(\.layoutDirection, TextTools.isRightToLeft(all) ? .rightToLeft : .leftToRight)
         }
         .transition(.opacity)
     }

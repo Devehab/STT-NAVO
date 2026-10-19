@@ -157,6 +157,7 @@ final class LocalEngineManager: ObservableObject {
         let llm: LLM?
         let llms: [WriterEntry]?
         let mlxLmVersion: String?
+        let ggufRuntime: String?
     }
 
     /// Live facts that show the engine runs on this Mac.
@@ -204,6 +205,10 @@ final class LocalEngineManager: ObservableObject {
     /// The model being erased from this Mac right now, if any.
     @Published private(set) var deleting: DeletableModel?
     @Published private(set) var llmAvailable = false
+    /// llama.cpp's version when the engine can run GGUF models (nil: not added yet).
+    @Published private(set) var ggufRuntime: String?
+    /// GGUF support is being added to the engine.
+    @Published private(set) var addingGGUF = false
     @Published private(set) var llmLoaded: String?
     @Published private(set) var details: Details?
 
@@ -250,7 +255,10 @@ final class LocalEngineManager: ObservableObject {
     /// The model is on this Mac: what the engine reports, or the download folder while the
     /// engine is not running.
     func isDownloaded(_ model: WritingModel) -> Bool {
-        llms[model]?.downloaded ?? Self.isDownloaded(settings.model(for: model))
+        if let custom = model.custom {
+            return llms[model]?.downloaded ?? FileManager.default.fileExists(atPath: custom.path)
+        }
+        return llms[model]?.downloaded ?? Self.isDownloaded(settings.model(for: model))
     }
 
     func isDownloaded(_ engine: SpeechEngine) -> Bool {
@@ -425,6 +433,7 @@ final class LocalEngineManager: ObservableObject {
             "--llm-model", settings.cleanupModel,
             "--gemma-model", settings.model(for: WritingModel.gemma),
             "--llama-model", settings.model(for: WritingModel.llama),
+            "--custom-llms", customModelsArgument,
             "--idle-minutes", "\(settings.idleMinutes)",
             "--parent-pid", "\(ProcessInfo.processInfo.processIdentifier)",
         ]
@@ -451,6 +460,13 @@ final class LocalEngineManager: ObservableObject {
         try process.run()
         self.process = process
         synced = true // the launch arguments already match the settings
+    }
+
+    /// The models added from a folder, as the engine reads them.
+    private var customModelsArgument: String {
+        let list = settings.customModels.map { ["id": $0.id, "name": $0.name, "path": $0.path, "format": $0.format.rawValue] }
+        guard let data = try? JSONSerialization.data(withJSONObject: list) else { return "[]" }
+        return String(decoding: data, as: UTF8.self)
     }
 
     private func engineEnvironment(source: URL) -> [String: String] {
@@ -526,6 +542,7 @@ final class LocalEngineManager: ObservableObject {
         guard !stopping, state != .installing else { return }
         llmAvailable = health.llm?.available ?? false
         llmLoaded = health.llm?.loadedModel
+        if ggufRuntime != health.ggufRuntime { ggufRuntime = health.ggufRuntime }
 
         var infos: [SpeechEngine: EngineInfo] = [:]
         for entry in health.engines ?? [] {
@@ -754,6 +771,43 @@ final class LocalEngineManager: ObservableObject {
             }
         }
     }
+
+    /// The list of models added from a folder changed: the engine reads it when it starts.
+    func customModelsChanged() {
+        if isRunning || process != nil {
+            restart()
+        } else {
+            startIfInstalled()
+        }
+    }
+
+    /// Adds llama.cpp to the engine so it can run GGUF models (one ready-made package).
+    func addGGUFSupport() async -> Bool {
+        guard installer == nil, isInstalled, let source = Paths.engineSource else { return false }
+        addingGGUF = true
+        resetInstallOutput(status: "Adding GGUF support")
+        var environment = ProcessInfo.processInfo.environment
+        environment["NAVO_SUPPORT_DIR"] = Paths.supportDir.path
+        let status: Int32 = await withCheckedContinuation { continuation in
+            runTool(
+                executable: URL(fileURLWithPath: "/bin/bash"),
+                arguments: [source.appendingPathComponent("add-gguf.sh").path],
+                environment: environment
+            ) { status in
+                continuation.resume(returning: status)
+            }
+        }
+        addingGGUF = false
+        if status == 0 {
+            installStatus = "GGUF support added"
+            return true
+        }
+        installStatus = lastInstallProblem(status)
+        return false
+    }
+
+    /// The last line the installer or downloader printed that explains a failure.
+    var lastProblem: String { lastInstallProblem(-1) }
 
     /// Downloads the small cleanup model (it normally comes with Install).
     func downloadCleanupModel() {

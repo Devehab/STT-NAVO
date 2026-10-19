@@ -40,7 +40,8 @@ from . import DEFAULT_PORT, __version__, package_version
 from .engines import PROFILES, limit_message, too_many_enabled
 from .llms import LLM_PROFILES, MEMORY_LIMIT_BYTES
 from .models import cached_snapshot, dir_size
-from .options import add_model_arguments, check_engine_limit, llm_overrides, model_overrides, watch_parent
+from .custom import gguf_runtime_version, is_available as llm_available
+from .options import add_model_arguments, apply_custom_llms, check_engine_limit, llm_overrides, model_overrides, watch_parent
 
 log = logging.getLogger("navo.gateway")
 
@@ -271,7 +272,7 @@ class Gateway:
             "license": profile.license,
             "model": model,
             "status": "error" if failed else "asleep",
-            "downloaded": cached_snapshot(model) is not None,
+            "downloaded": llm_available(llm_id, model),
             "error": last.get("error") if failed else None,
             "load_seconds": None,
             "idle_seconds": None,
@@ -338,6 +339,7 @@ class Gateway:
                 "worker": self.state,
                 "sleeping": worker_pid is None,
                 "idle_minutes": self.idle_minutes,
+                "gguf_runtime": gguf_runtime_version(),
                 "host": self.args.host,
                 "port": self.args.port,
             }
@@ -362,6 +364,7 @@ def default_worker_command(gateway: Gateway, preload_all: bool) -> list[str]:
         "--llm-model", args.llm_model,
         "--gemma-model", gateway.llm_models["gemma"],
         "--llama-model", gateway.llm_models["llama"],
+        "--custom-llms", args.custom_llms or "[]",
         "--llm-context", str(args.llm_context),
         "--llm-keep-alive", str(args.llm_keep_alive),
         "--backend", args.backend,
@@ -529,7 +532,7 @@ def create_gateway_app(gateway: Gateway) -> FastAPI:
             return JSONResponse({"detail": f"Unknown action '{action}'"}, status_code=404)
         if action == "unload" and not gateway.running:
             return JSONResponse(gateway.llm_report(llm_id))
-        if action == "load" and cached_snapshot(gateway.llm_models[llm_id]) is None:
+        if action == "load" and not llm_available(llm_id, gateway.llm_models[llm_id]):
             profile = LLM_PROFILES[llm_id]
             return JSONResponse(
                 {"detail": f"{profile.name} is not downloaded yet. Download it in Navo > Settings > AI writing."},
@@ -621,7 +624,7 @@ def create_gateway_app(gateway: Gateway) -> FastAPI:
                     {"detail": f"Unknown language model '{first}'. Use one of: {', '.join(LLM_PROFILES)}"}, status_code=404
                 )
             # A language model that is not downloaded never wakes the worker (the speech models stay).
-            if first in LLM_PROFILES and cached_snapshot(gateway.llm_models[first]) is None:
+            if first in LLM_PROFILES and not llm_available(first, gateway.llm_models[first]):
                 profile = LLM_PROFILES[first]
                 return JSONResponse(
                     {
@@ -653,6 +656,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     )
     add_model_arguments(parser)
     args = parser.parse_args(argv)
+    apply_custom_llms(args)
     check_engine_limit(parser, args.engines)
 
     logging.basicConfig(

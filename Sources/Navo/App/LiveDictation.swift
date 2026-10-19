@@ -10,19 +10,23 @@ struct LiveText: Equatable {
     var isEmpty: Bool { settled.isEmpty && preview.isEmpty }
 }
 
-/// Transcribes a dictation while it is being spoken.
+/// Transcribes a dictation while it is being spoken, in two passes.
 ///
 /// Every half second it looks at the audio not sent yet. When a phrase has ended (a real pause
 /// of at least 350 ms, found the same way meetings are cut, so a word is never split), that phrase
-/// is sent to the speech engine once and its text is settled. Between pauses, the phrase still
-/// being said is sent again every second or so for a preview line. One request is out at a time,
-/// and if previews come back too slowly for this Mac and engine, they stop and only finished
-/// phrases are sent.
+/// is sent to the speech engine once, for the text you see while you talk. Between pauses, the
+/// phrase still being said is sent again every second or so for a preview line. If previews come
+/// back too slowly for this Mac and engine, they stop and only finished phrases are sent.
 ///
-/// When the key is let go, a long dictation only needs its last phrase transcribed, so the text
-/// is in almost at once. A short one (`fullPassSeconds` or less) is transcribed again in one go
-/// as before, so its accuracy does not change at all. Anything that goes wrong here falls back
-/// to that full transcription: live text is never worse than before, only faster.
+/// A few seconds of speech give a model little context, so that text is a draft. Once the
+/// phrases add up to about `paragraphSeconds`, that stretch is sent again as a whole, ending at a
+/// phrase's end, and its text becomes final: as accurate as transcribing the recording afterwards.
+/// One request is out at a time, and a paragraph goes before phrases and previews.
+///
+/// When the key is let go, a short dictation (`fullPassSeconds` or less) is transcribed again in
+/// one go, as always. A long one only needs what came after its last paragraph, so it is in
+/// almost at once and every part of it was heard with full context. Anything that goes wrong
+/// here falls back to the full transcription: live text is never worse than before, only faster.
 @MainActor
 final class LiveDictation {
     static let fullPassSeconds = 30.0
@@ -35,6 +39,8 @@ final class LiveDictation {
     private static let pauseSeconds = 0.35
     /// With no pause at all, the phrase is cut anyway before the model's 30 second window fills.
     private static let longestPhrase = 24.0
+    /// Phrases are heard again as a whole once they add up to this.
+    private static let paragraphSeconds = 18.0
     private static let previewEvery = 0.6
     private static let shortestPreview = 0.8
     /// A preview slower than this means this Mac and engine cannot keep up: previews stop.
@@ -55,9 +61,15 @@ final class LiveDictation {
     private var loop: Task<Void, Never>?
     /// Sample where the audio not settled yet begins.
     private var cut = 0
-    private var phrases: [String] = []
+    /// Draft phrases after the last paragraph: where each ends, and its text.
+    private var phrases: [(end: Int, text: String)] = []
+    /// Sample where the audio not final yet begins, and the final text before it.
+    private var finalCut = 0
+    private var finals: [String] = []
     private var busy = false
     private var failed = false
+    /// The key was let go: the request out now finishes (cancelling it would throw its text away).
+    private var stopping = false
     private var previews = true
     private var previewedUpTo = 0
 
@@ -70,7 +82,7 @@ final class LiveDictation {
         loop = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: LiveDictation.tick)
-                guard let self, !Task.isCancelled else { return }
+                guard let self, !Task.isCancelled, !self.stopping else { return }
                 await self.step()
             }
         }
@@ -85,15 +97,17 @@ final class LiveDictation {
     /// The whole text from the live phrases plus the last one, or nil when the dictation should be
     /// transcribed in one go instead (short, or something went wrong while it was live).
     func finish(samples: [Float]) async -> TranscriptionClient.Result? {
-        loop?.cancel()
-        loop = nil
+        stopping = true
         while busy {
             try? await Task.sleep(nanoseconds: 50_000_000)
         }
+        loop?.cancel()
+        loop = nil
         let seconds = Double(samples.count) / Self.rate
-        guard !failed, seconds > Self.fullPassSeconds, cut <= samples.count else { return nil }
-        var all = phrases
-        let rest = Array(samples[cut...])
+        guard !failed, seconds > Self.fullPassSeconds, finalCut <= samples.count else { return nil }
+        var all = finals
+        // Everything after the last paragraph, heard as a whole too.
+        let rest = Array(samples[finalCut...])
         if rest.count > Int(0.3 * Self.rate) && !SmartCut.isSilent(rest) {
             guard let last = await send(rest) else { return nil }
             if !last.text.isEmpty { all.append(last.text) }
@@ -106,6 +120,11 @@ final class LiveDictation {
 
     private func step() async {
         guard !busy else { return }
+        // A paragraph's worth of phrases: hear it again as a whole.
+        if let end = phrases.first(where: { Double($0.end - finalCut) >= Self.paragraphSeconds * Self.rate })?.end {
+            await finalize(upTo: end)
+            return
+        }
         let total = recorder.sampleCount
         let unsent = total - cut
         if Double(unsent) >= Self.phraseSeconds * Self.rate, let end = phraseEnd(total: total) {
@@ -144,6 +163,7 @@ final class LiveDictation {
         busy = true
         defer { busy = false }
         guard !SmartCut.isSilent(piece) else {
+            phrases.append((end, ""))
             text.preview = ""
             return
         }
@@ -153,10 +173,27 @@ final class LiveDictation {
             loop?.cancel()
             return
         }
-        if !result.text.isEmpty {
-            phrases.append(result.text)
+        phrases.append((end, result.text))
+        publish(preview: "")
+    }
+
+    /// The final pass: the audio from the last paragraph to a phrase's end, as a whole.
+    private func finalize(upTo end: Int) async {
+        let audio = recorder.samples(from: finalCut)
+        let piece = Array(audio.prefix(max(0, end - finalCut)))
+        busy = true
+        defer { busy = false }
+        if !SmartCut.isSilent(piece) {
+            guard let result = await send(piece) else {
+                failed = true
+                loop?.cancel()
+                return
+            }
+            if !result.text.isEmpty { finals.append(result.text) }
         }
-        text = LiveText(settled: phrases.joined(separator: " "), preview: "")
+        finalCut = end
+        phrases.removeAll { $0.end <= end }
+        publish(preview: text.preview)
     }
 
     private func preview(total: Int) async {
@@ -174,6 +211,12 @@ final class LiveDictation {
         // A phrase settled meanwhile: this preview is out of date.
         guard let result, cut == start else { return }
         text.preview = result.text
+    }
+
+    /// The text so far: the final paragraphs, the draft phrases after them, and the preview.
+    private func publish(preview: String) {
+        let settled = (finals + phrases.map(\.text)).filter { !$0.isEmpty }.joined(separator: " ")
+        text = LiveText(settled: settled, preview: preview)
     }
 
     private func send(_ samples: [Float]) async -> TranscriptionClient.Result? {

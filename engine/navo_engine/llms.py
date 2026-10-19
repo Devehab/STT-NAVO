@@ -204,8 +204,11 @@ class LanguageModel:
         loader: Optional[Callable[[str], tuple[Any, Any]]] = None,
         generator: Optional[Generator] = None,
         model_resolver: Callable[[str, bool], Path] = resolve_model_dir,
+        custom: bool = False,
     ):
         self.llm_id = profile.id
+        # Added from a folder on this Mac (LM Studio, for example), not downloaded by Navo.
+        self.custom = custom
         self.name = profile.name
         self.maker = profile.maker
         self.license = profile.license
@@ -278,6 +281,11 @@ class LanguageModel:
         try:
             path = self._resolve(self.model_id, False)
         except Exception as exc:
+            if self.custom:
+                raise LLMUnavailable(
+                    f"{self.name} is not at {self.model_id} any more. Was it moved or deleted? "
+                    "Remove it in Navo > Settings > Cleanup and AI and add it again."
+                ) from exc
             raise LLMUnavailable(
                 f"{self.name} is not downloaded yet. Download it in Navo > Settings > AI writing, or run: "
                 f"python -m navo_engine.download --model {self.model_id}"
@@ -319,6 +327,12 @@ class LanguageModel:
     def unload(self) -> None:
         """Frees the weights. The next request loads them again."""
         was_loaded = self._model is not None
+        close = getattr(self._model, "close", None)  # llama.cpp frees its memory here
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass
         self._model = self._tokenizer = None
         self.load_seconds, self.last_used, self.expires_at = None, None, None
         if self.status != "error" or was_loaded:

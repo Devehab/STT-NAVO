@@ -45,6 +45,11 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--gemma-model", default=None, help="Gemma model id or folder (language model)")
     parser.add_argument("--llama-model", default=None, help="Llama model id or folder (language model)")
     parser.add_argument(
+        "--custom-llms",
+        default=None,
+        help='Language models used from their own folder, as JSON: [{"id": "custom-…", "name": …, "path": …, "format": "mlx" or "gguf"}]',
+    )
+    parser.add_argument(
         "--llm-context",
         type=int,
         default=DEFAULT_CONTEXT_TOKENS,
@@ -72,6 +77,13 @@ def model_overrides(args: argparse.Namespace) -> dict[str, str]:
         engine_id: getattr(args, MODEL_OPTIONS.get(engine_id, ""), None) or profile.model_id
         for engine_id, profile in PROFILES.items()
     }
+
+
+def apply_custom_llms(args: argparse.Namespace) -> None:
+    """Adds the models of --custom-llms next to Gemma and Llama. Call right after parsing."""
+    from .custom import parse, register
+
+    register(parse(getattr(args, "custom_llms", None)))
 
 
 def llm_overrides(args: argparse.Namespace) -> dict[str, str]:

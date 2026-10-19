@@ -3,6 +3,12 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.15.0
+
+- **Use the models you already have.** Settings > Cleanup and AI > Add a model lists the models LM Studio downloaded, or takes any folder or .gguf file. Navo uses them where they are, so nothing is downloaded twice: MLX folders run on MLX, GGUF files on llama.cpp (Navo adds it to its engine once). Each one is tested right away, and can be picked for summaries, rewrites and translations. Remove takes it out of Navo and never touches its files.
+- **Live text as accurate as transcribing afterwards.** Live text now comes in two passes: each sentence appears in grey a moment after it is said, and about every 20 seconds Navo listens to that stretch again as a whole and puts the final text in its place. A few seconds alone give a model too little context; 20 seconds give it as much as a full transcription. The saved transcript is always the final text.
+- **Long dictations too.** While you talk, every 20 seconds or so is heard again as a whole, so a long dictation is accurate and still in a second or two after you let go. Short dictations are transcribed again in one go, as before.
+
 ## 0.14.0
 
 - **Audar downloads work again.** On a new Mac the download finished but Navo kept saying "not downloaded", because the newest Hugging Face library counts the files Navo skips on purpose as missing. The engine now checks the files on disk itself, and a download only says done once the engine can really find the model. Download Cohere with its token right in its row.
