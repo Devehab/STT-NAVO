@@ -39,7 +39,13 @@ final class SessionStore: ObservableObject {
     /// Live meeting text not final yet, by session: the phrases just said and the one being said.
     /// Not saved: each paragraph is transcribed again as a whole, and that replaces them.
     @Published private(set) var liveDraft: [String: LiveDraft] = [:]
-    @Published private(set) var lastError: String?
+    @Published private(set) var lastError: String? {
+        didSet {
+            if let lastError, lastError != oldValue {
+                ProblemLog.shared.report("Notetaker and Transcribe", lastError)
+            }
+        }
+    }
     /// Files being copied in right now.
     @Published private(set) var importing = 0
     /// Called with the saved session when a transcription ends by itself (done or failed), not
@@ -733,6 +739,11 @@ final class SessionStore: ObservableObject {
             current.error = message
         }
         save(current)
+        if current.status == .failed || current.status == .partial, let error = current.error {
+            let reasons = Set(current.chunks.compactMap { $0.text == nil ? $0.error : nil }).sorted().prefix(3)
+            let why = reasons.isEmpty ? "" : " Why: " + reasons.joined(separator: "; ")
+            ProblemLog.shared.report("Transcription", "\(current.kind == .meeting ? "A meeting" : "A file"): \(error)\(why)")
+        }
         if case .cancelled = outcome { return }
         onTranscriptionEnded?(current)
     }

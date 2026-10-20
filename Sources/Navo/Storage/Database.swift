@@ -128,6 +128,10 @@ struct DatabaseError: LocalizedError {
 /// Thin SQLite wrapper. The connection is opened in serialized mode, so it is safe to use from any thread.
 final class Database: @unchecked Sendable {
     private var db: OpaquePointer?
+    /// Columns of the metrics table, so measurements save even if a newer column could not be added.
+    private var metricColumns: Set<String> = []
+    /// What went wrong while opening that did not stop it (for the problems log).
+    private(set) var problems: [String] = []
 
     private enum Value {
         case text(String?)
@@ -258,33 +262,71 @@ final class Database: @unchecked Sendable {
             PRAGMA user_version = 4;
             """)
         }
+        if version < 5 {
+            // The context window and the sizes of each AI answer. Without them Navo still works:
+            // measurements are saved with the columns there are, and the problem is logged.
+            do {
+                let have = try columns(of: "metrics")
+                for (name, type) in Self.newerMetricColumns where !have.contains(name) {
+                    try exec("ALTER TABLE metrics ADD COLUMN \(name) \(type);")
+                }
+                try exec("PRAGMA user_version = 5;")
+            } catch {
+                problems.append("Could not add the AI size columns to the measurements: \(error.localizedDescription)")
+            }
+        }
+        metricColumns = (try? columns(of: "metrics")) ?? []
+    }
+
+    /// Added in version 5: the context window, the sizes in and out, and whether the answer was cut off.
+    private static let newerMetricColumns: [(String, String)] = [
+        ("context_tokens", "INTEGER"),
+        ("model_context_tokens", "INTEGER"),
+        ("max_output_tokens", "INTEGER"),
+        ("fullest_tokens", "INTEGER"),
+        ("input_chars", "INTEGER"),
+        ("output_chars", "INTEGER"),
+        ("text_chars", "INTEGER"),
+        ("text_tokens", "INTEGER"),
+        ("requests", "INTEGER"),
+        ("cut_off", "INTEGER NOT NULL DEFAULT 0"),
+    ]
+
+    private func columns(of table: String) throws -> Set<String> {
+        Set(try query("PRAGMA table_info(\(table))") { Self.text($0, 1) ?? "" })
     }
 
     // MARK: Metrics
 
     func saveMetric(_ record: PerfRecord) throws {
-        try run(
-            """
-            INSERT OR REPLACE INTO metrics (id, created_at, kind, ref_id, model, model_name, audio_seconds, total_ms,
-                transcribe_ms, compute_ms, cleanup_ms, load_ms, first_token_ms, prompt_tokens, output_tokens,
-                tokens_per_second, live, detail)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            [
-                .text(record.id), .double(record.createdAt.timeIntervalSince1970), .text(record.kind.rawValue),
-                .text(record.refID), .text(record.model), .text(record.modelName), Self.optional(record.audioSeconds),
-                .int(record.totalMs), .int(record.transcribeMs), .int(record.computeMs), .int(record.cleanupMs),
-                .int(record.loadMs), .int(record.firstTokenMs), .int(record.promptTokens), .int(record.outputTokens),
-                Self.optional(record.tokensPerSecond), .int(record.live ? 1 : 0), .text(record.detail),
-            ]
-        )
+        let all: [(String, Value)] = [
+            ("id", .text(record.id)), ("created_at", .double(record.createdAt.timeIntervalSince1970)),
+            ("kind", .text(record.kind.rawValue)), ("ref_id", .text(record.refID)), ("model", .text(record.model)),
+            ("model_name", .text(record.modelName)), ("audio_seconds", Self.optional(record.audioSeconds)),
+            ("total_ms", .int(record.totalMs)), ("transcribe_ms", .int(record.transcribeMs)),
+            ("compute_ms", .int(record.computeMs)), ("cleanup_ms", .int(record.cleanupMs)), ("load_ms", .int(record.loadMs)),
+            ("first_token_ms", .int(record.firstTokenMs)), ("prompt_tokens", .int(record.promptTokens)),
+            ("output_tokens", .int(record.outputTokens)), ("tokens_per_second", Self.optional(record.tokensPerSecond)),
+            ("live", .int(record.live ? 1 : 0)), ("detail", .text(record.detail)),
+            ("context_tokens", .int(record.contextTokens)), ("model_context_tokens", .int(record.modelContextTokens)),
+            ("max_output_tokens", .int(record.maxOutputTokens)), ("fullest_tokens", .int(record.fullestTokens)),
+            ("input_chars", .int(record.inputChars)), ("output_chars", .int(record.outputChars)),
+            ("text_chars", .int(record.textChars)), ("text_tokens", .int(record.textTokens)),
+            ("requests", .int(record.requests)), ("cut_off", .int(record.cutOff ? 1 : 0)),
+        ]
+        let fields = metricColumns.isEmpty ? Array(all.prefix(18)) : all.filter { metricColumns.contains($0.0) }
+        let names = fields.map(\.0).joined(separator: ", ")
+        let marks = Array(repeating: "?", count: fields.count).joined(separator: ",")
+        try run("INSERT OR REPLACE INTO metrics (\(names)) VALUES (\(marks))", fields.map(\.1))
     }
 
     func metrics(limit: Int) throws -> [PerfRecord] {
-        try query(
+        let newer = Self.newerMetricColumns.map(\.0).filter { metricColumns.contains($0) }
+        let extra = newer.isEmpty ? "" : ", " + newer.joined(separator: ", ")
+        return try query(
             """
             SELECT id, created_at, kind, ref_id, model, model_name, audio_seconds, total_ms, transcribe_ms, compute_ms,
-                cleanup_ms, load_ms, first_token_ms, prompt_tokens, output_tokens, tokens_per_second, live, detail
+                cleanup_ms, load_ms, first_token_ms, prompt_tokens, output_tokens, tokens_per_second, live, detail\(extra)
             FROM metrics ORDER BY created_at DESC LIMIT ?
             """,
             [.int(limit)]
@@ -295,7 +337,7 @@ final class Database: @unchecked Sendable {
             func double(_ column: Int32) -> Double? {
                 sqlite3_column_type(stmt, column) == SQLITE_NULL ? nil : sqlite3_column_double(stmt, column)
             }
-            return PerfRecord(
+            var record = PerfRecord(
                 id: Self.text(stmt, 0) ?? UUID().uuidString,
                 createdAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 1)),
                 kind: PerfRecord.Kind(rawValue: Self.text(stmt, 2) ?? "") ?? .dictation,
@@ -315,6 +357,23 @@ final class Database: @unchecked Sendable {
                 live: int(16) == 1,
                 detail: Self.text(stmt, 17)
             )
+            for (offset, name) in newer.enumerated() {
+                let value = int(Int32(18 + offset))
+                switch name {
+                case "context_tokens": record.contextTokens = value
+                case "model_context_tokens": record.modelContextTokens = value
+                case "max_output_tokens": record.maxOutputTokens = value
+                case "fullest_tokens": record.fullestTokens = value
+                case "input_chars": record.inputChars = value
+                case "output_chars": record.outputChars = value
+                case "text_chars": record.textChars = value
+                case "text_tokens": record.textTokens = value
+                case "requests": record.requests = value
+                case "cut_off": record.cutOff = value == 1
+                default: break
+                }
+            }
+            return record
         }
     }
 

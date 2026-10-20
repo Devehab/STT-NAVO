@@ -26,6 +26,24 @@ struct WritingClient: Sendable {
         var loadMs: Int?
         /// The whole request, as this app saw it.
         var totalMs: Int?
+        /// Tokens one request could hold, prompt plus answer (Navo's limit, or the model's own when smaller).
+        var contextTokens: Int?
+        /// The longest context the model was made for.
+        var modelContextTokens: Int?
+        /// The room the answer had, in tokens.
+        var maxOutputTokens: Int?
+        /// Characters of every message sent, and of the answer.
+        var inputChars: Int?
+        var outputChars: Int?
+        /// The text to work on alone (no instructions), in characters and in tokens.
+        var textChars: Int?
+        var textTokens: Int?
+        /// Requests this answer took (a long text is read in parts).
+        var requests = 1
+        /// Prompt plus answer of the fullest request: how close it came to the context.
+        var fullestTokens: Int?
+        /// Figures that could not be measured, and why. The answer itself is fine.
+        var problems: [String] = []
     }
 
     struct Failure: LocalizedError {
@@ -88,6 +106,8 @@ struct WritingClient: Sendable {
         }
 
         var answer = Answer(text: "")
+        var finished = false
+        var measured = false
         for try await line in bytes.lines {
             guard line.hasPrefix("data:") else { continue }
             let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
@@ -106,23 +126,50 @@ struct WritingClient: Sendable {
                 }
                 if let reason = choice["finish_reason"] as? String {
                     answer.finishReason = reason
+                    finished = true
                 }
             }
             if let usage = json["usage"] as? [String: Any] {
-                answer.promptTokens = usage["prompt_tokens"] as? Int ?? 0
-                answer.completionTokens = usage["completion_tokens"] as? Int ?? 0
+                answer.promptTokens = Self.int(usage["prompt_tokens"]) ?? 0
+                answer.completionTokens = Self.int(usage["completion_tokens"]) ?? 0
             }
             if let stats = json["navo"] as? [String: Any] {
-                answer.tokensPerSecond = (stats["tokens_per_second"] as? NSNumber)?.doubleValue
-                answer.peakMemoryBytes = (stats["peak_memory_bytes"] as? NSNumber)?.int64Value
-                answer.decodeTokensPerSecond = (stats["decode_tokens_per_second"] as? NSNumber)?.doubleValue
-                answer.loadMs = (stats["load_ms"] as? NSNumber)?.intValue
+                measured = true
+                answer.read(stats)
             }
         }
         answer.totalMs = Int(Date().timeIntervalSince(started) * 1000)
         try Task.checkCancellation()
+        if finished && !measured {
+            answer.problems.append("The engine sent the answer without its figures (no \"navo\" field), so it was not measured.")
+        }
+        if answer.promptTokens > 0 || answer.completionTokens > 0 {
+            answer.fullestTokens = answer.promptTokens + answer.completionTokens
+        } else if finished {
+            answer.problems.append("The engine sent no token counts (no \"usage\" field) with the answer.")
+        }
+        answer.outputChars = answer.outputChars ?? answer.text.count
         answer.text = answer.text.trimmingCharacters(in: .whitespacesAndNewlines)
         return answer
+    }
+
+    /// A whole number from JSON, or nil for anything else.
+    static func int(_ value: Any?) -> Int? {
+        guard let number = value as? NSNumber, !isBool(number) else { return nil }
+        let double = number.doubleValue
+        guard double.isFinite, abs(double) < 1e15 else { return nil }
+        return number.intValue
+    }
+
+    /// A finite number from JSON, or nil.
+    static func double(_ value: Any?) -> Double? {
+        guard let number = value as? NSNumber, !isBool(number), number.doubleValue.isFinite else { return nil }
+        return number.doubleValue
+    }
+
+    /// JSON true and false also arrive as NSNumber (and Swift's `is Bool` says yes to 0 and 1).
+    private static func isBool(_ number: NSNumber) -> Bool {
+        CFGetTypeID(number) == CFBooleanGetTypeID()
     }
 
     /// The engine's own words for an error: {"detail": "..."}.
@@ -130,5 +177,29 @@ struct WritingClient: Sendable {
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
         if let detail = json["detail"] as? String { return detail }
         return (json["error"] as? [String: Any])?["message"] as? String
+    }
+}
+
+extension WritingClient.Answer {
+    /// The engine's figures (the "navo" field). A figure missing or of the wrong kind is left out:
+    /// the answer never depends on them. The engine's own notes on what it could not measure come in "problems".
+    mutating func read(_ stats: [String: Any]) {
+        typealias C = WritingClient
+        tokensPerSecond = C.double(stats["tokens_per_second"])
+        peakMemoryBytes = C.int(stats["peak_memory_bytes"]).map(Int64.init)
+        decodeTokensPerSecond = C.double(stats["decode_tokens_per_second"])
+        loadMs = C.int(stats["load_ms"])
+        contextTokens = C.int(stats["context_tokens"])
+        modelContextTokens = C.int(stats["model_context_tokens"])
+        maxOutputTokens = C.int(stats["max_output_tokens"])
+        inputChars = C.int(stats["input_chars"])
+        outputChars = C.int(stats["output_chars"])
+        textChars = C.int(stats["text_chars"])
+        textTokens = C.int(stats["text_tokens"])
+        problems += (stats["problems"] as? [Any] ?? []).compactMap { $0 as? String }
+        // An engine from before these figures: say once that they are missing, rather than nothing.
+        if stats["context_tokens"] == nil && stats["problems"] == nil {
+            problems.append("The engine did not send the context window and sizes. Update it: Settings > Speech engines > Reinstall / update.")
+        }
     }
 }

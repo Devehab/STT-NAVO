@@ -244,7 +244,7 @@ scripts/      build-app.sh, run.sh, package.sh (the DMG download), demo.sh (samp
 
 ## Data and privacy
 
-Everything lives in `~/Library/Application Support/Navo`: `navo.sqlite` (history, dictionary, meetings and files, clipboard history), `Audio/` (dictation recordings), `Sessions/` (meetings and imported files), `Inbox/` (audio from the Share menu, moved into Transcribe right away), `engine/` (Python environment), `Logs/engine.log`. Models are in the Hugging Face cache (`~/.cache/huggingface`). The engine listens on 127.0.0.1 only and loads models with `HF_HUB_OFFLINE=1`.
+Everything lives in `~/Library/Application Support/Navo`: `navo.sqlite` (history, dictionary, meetings and files, clipboard history), `Audio/` (dictation recordings), `Sessions/` (meetings and imported files), `Inbox/` (audio from the Share menu, moved into Transcribe right away), `engine/` (Python environment), `Logs/engine.log`, `Logs/problems.log` (what failed without stopping Navo, also in Settings > Performance). Models are in the Hugging Face cache (`~/.cache/huggingface`). The engine listens on 127.0.0.1 only and loads models with `HF_HUB_OFFLINE=1`.
 
 - **Recordings** are kept as WAV files by default so you can replay or re-transcribe them. Turn off *Keep recordings* and each one is erased right after transcription, or set *Keep recordings for* to a number of days.
 - **Deleting is permanent.** Recordings are removed from disk (not moved to the Trash). The database runs with `secure_delete`, so deleted text is overwritten, and it is compacted after every deletion.

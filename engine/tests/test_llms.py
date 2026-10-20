@@ -17,7 +17,14 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from navo_engine.asr import ASRService  # noqa: E402
 from navo_engine.llm import LLMService, LLMUnavailable, strip_thinking  # noqa: E402
-from navo_engine.llms import LLM_PROFILES, MEMORY_LIMIT_BYTES, LanguageModel, PromptTooLong, lookup_llm  # noqa: E402
+from navo_engine.llms import (  # noqa: E402
+    LLM_PROFILES,
+    MEMORY_LIMIT_BYTES,
+    LanguageModel,
+    PromptTooLong,
+    lookup_llm,
+    trained_context,
+)
 from navo_engine.server import Engine, create_app  # noqa: E402
 
 from fake_worker import FakeTokenizer, fake_words  # noqa: E402
@@ -349,3 +356,117 @@ def test_odd_request_values_are_safe():
     assert chat(client, keep_alive=1e12).status_code == 200
     assert engine.llms["gemma"].expires_at is not None
     assert client.post("/v1/llms/unload").status_code == 200 and loaded(engine) == []
+
+
+def test_answers_carry_the_context_and_the_sizes():
+    client, engine = make_engine()
+    body = chat(client, messages=[
+        {"role": "system", "content": "Summarize."},
+        {"role": "user", "content": "one two three four"},
+    ], max_tokens=200).json()
+    stats = body["navo"]
+    assert stats["context_tokens"] == 6144 and stats["max_output_tokens"] == 200
+    assert stats["input_chars"] == len("Summarize.") + len("one two three four")
+    assert stats["text_chars"] == len("one two three four") and stats["text_tokens"] == 4
+    assert stats["output_chars"] == len("gemma wrote this answer")
+    # The fake model folder has no config.json: its own context is unknown, and said so.
+    assert stats["model_context_tokens"] is None
+    assert any("context length" in problem for problem in stats["problems"])
+    assert body["choices"][0]["message"]["content"] == "gemma wrote this answer"
+
+
+def test_the_context_the_model_was_made_for(tmp_path):
+    (tmp_path / "config.json").write_text(json.dumps({"text_config": {"max_position_embeddings": 131072}}))
+    assert trained_context(None, str(tmp_path)) == (131072, None)
+    (tmp_path / "config.json").write_text(json.dumps({"max_position_embeddings": 2048, "text_config": {"max_position_embeddings": 9}}))
+    assert trained_context(None, str(tmp_path)) == (2048, None)
+    gguf = tmp_path / "m.gguf"
+    gguf.write_bytes(b"x")
+
+    class Llama:
+        def n_ctx_train(self):
+            return 32768
+
+    assert trained_context(Llama(), str(gguf)) == (32768, None)
+
+    class Inner:
+        def n_ctx_train(self):
+            return 8192
+
+    class Wrapped:
+        _model = Inner()
+
+    class OnlyMetadata:
+        metadata = {"general.architecture": "llama", "llama.context_length": "4096"}
+
+    assert trained_context(Wrapped(), str(gguf)) == (8192, None)
+    assert trained_context(OnlyMetadata(), str(gguf)) == (4096, None)
+    (tmp_path / "config.json").write_text("{not json")
+    value, problem = trained_context(None, str(tmp_path))
+    assert value is None and "could not read" in problem
+    (tmp_path / "config.json").write_text(json.dumps({"hidden_size": 8}))
+    value, problem = trained_context(None, str(tmp_path))
+    assert value is None and "does not say" in problem
+
+
+def test_a_model_made_for_a_short_context_gets_requests_that_fit(tmp_path):
+    (tmp_path / "config.json").write_text(json.dumps({"max_position_embeddings": 1024}))
+    (tmp_path / "model.safetensors").write_bytes(b"x")
+    model = make_llm(resolver=lambda m, d: tmp_path)
+    model.load()
+    assert model.model_context == 1024 and model.window == 1024
+    assert model.output_budget(100, None) == 924
+    with pytest.raises(PromptTooLong) as error:
+        model.generate([{"role": "user", "content": "word " * 1000}])
+    assert "made for" in str(error.value)
+    done = model.generate([{"role": "user", "content": "hello"}])
+    assert done.context_tokens == 1024 and done.model_context_tokens == 1024 and not done.problems
+    model.unload()
+    assert model.model_context is None
+
+
+def test_a_measurement_that_fails_never_stops_the_answer():
+    class BrokenCount:
+        bos_token = None
+
+        def apply_chat_template(self, chat, add_generation_prompt=True, tokenize=False, **kwargs):
+            return " ".join(m["content"] for m in chat)
+
+        def encode(self, text, add_special_tokens=True):
+            if add_special_tokens is False:
+                raise RuntimeError("tokenizer broke")
+            return list(range(len(text.split())))
+
+    model = LanguageModel(
+        LLM_PROFILES["gemma"], "fake/gemma", loader=lambda path: ("gemma", BrokenCount()),
+        generator=fake_words, model_resolver=lambda m, d: _MODEL_DIR,
+    )
+    model.load()
+    done = model.generate([{"role": "user", "content": "hello there"}])
+    assert done.text == "gemma wrote this answer" and done.text_tokens is None
+    stats = done.stats()
+    assert any("tokenizer broke" in problem for problem in stats["problems"])
+    assert stats["prompt_tokens_per_second"] is not None or stats["first_token_ms"] is not None
+
+    # Even a figure that cannot be computed at all leaves the answer and says why.
+    done.seconds = "not a number"
+    broken = done.stats()
+    assert list(broken) == ["problems"] and "could not measure" in broken["problems"][-1]
+
+
+def test_a_generator_that_joins_tokens_gives_the_true_count():
+    closed = []
+
+    def joined(model, tokenizer, prompt, options):
+        try:
+            yield "two tokens ", None
+            yield "and three more", "length"
+            yield "never read", None
+        finally:
+            closed.append(True)
+            options["tally"]["tokens"] = 5
+
+    model = make_llm(generator=joined)
+    model.load()
+    done = model.generate([{"role": "user", "content": "x"}])
+    assert closed == [True] and done.completion_tokens == 5 and done.finish_reason == "length"

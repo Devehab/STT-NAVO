@@ -568,6 +568,27 @@ def create_app(engine: Engine) -> FastAPI:
             except OSError:
                 pass
 
+    def answer_stats(model: LanguageModel, completion: Completion, load_ms: int) -> dict:
+        """The figures sent with an answer (the "navo" field). Measuring never stops an answer:
+        what failed is left out and said in "problems", for the app's problems log."""
+        try:
+            stats = {"llm": model.llm_id, "load_ms": load_ms, **completion.stats()}
+            log.info(
+                "%s: %d + %d tokens (context %s, the model's own %s) in %.1f s",
+                model.llm_id,
+                completion.prompt_tokens,
+                completion.completion_tokens,
+                completion.context_tokens,
+                completion.model_context_tokens or "unknown",
+                completion.seconds,
+            )
+            for problem in stats.get("problems") or []:
+                log.warning("Measuring %s: %s", model.llm_id, problem)
+            return stats
+        except Exception as exc:
+            log.exception("Could not measure an answer of %s", model.name)
+            return {"llm": model.llm_id, "problems": [f"could not measure the answer: {exc}"]}
+
     def chat_body(model_name: str, text: str, finish_reason: str = "stop") -> dict:
         return {
             "id": f"chatcmpl-navo-{uuid.uuid4().hex[:12]}",
@@ -634,10 +655,7 @@ def create_app(engine: Engine) -> FastAPI:
         finish = "length" if completion.finish_reason == "length" else "stop"
         body = chat_body(model.model_id, completion.text, finish)
         body["usage"] = completion.usage()
-        body["navo"] = {"llm": model.llm_id, "load_ms": load_ms, **completion.stats()}
-        log.info(
-            "%s: %d + %d tokens in %.1f s", model.llm_id, completion.prompt_tokens, completion.completion_tokens, completion.seconds
-        )
+        body["navo"] = answer_stats(model, completion, load_ms)
         return body
 
     def stream_chat(
@@ -684,7 +702,7 @@ def create_app(engine: Engine) -> FastAPI:
                         yield chunk({"content": value})
                     elif kind == "done":
                         finish = "length" if value.finish_reason == "length" else "stop"
-                        stats = {"llm": model.llm_id, "load_ms": load_ms, **value.stats()}
+                        stats = answer_stats(model, value, load_ms)
                         yield chunk({}, finish, usage=value.usage(), navo=stats)
                         break
                     else:

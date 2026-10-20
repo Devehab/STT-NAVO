@@ -65,9 +65,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if Paths.isDemo { DemoData.reset() }
         do {
             database = try Database(url: Paths.database)
+            for problem in database?.problems ?? [] {
+                ProblemLog.shared.report("Storage", problem)
+            }
         } catch {
             database = nil
             openError = error.localizedDescription
+            ProblemLog.shared.report("Storage", "Could not open the history: \(error.localizedDescription)")
         }
         if Paths.isDemo, let database { DemoData.fill(database) }
 

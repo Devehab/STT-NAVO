@@ -31,6 +31,8 @@ enum Paths {
     static var inboxDir: URL { ensure(dataDir.appendingPathComponent("Inbox", isDirectory: true)) }
     static var logsDir: URL { ensure(supportDir.appendingPathComponent("Logs", isDirectory: true)) }
     static var engineLog: URL { logsDir.appendingPathComponent("engine.log") }
+    /// What went wrong without stopping Navo (see ProblemLog).
+    static var problemsLog: URL { logsDir.appendingPathComponent("problems.log") }
 
     static var engineHome: URL { supportDir.appendingPathComponent("engine", isDirectory: true) }
     static var enginePython: URL { engineHome.appendingPathComponent("venv/bin/python") }

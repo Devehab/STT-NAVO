@@ -6,7 +6,9 @@ import Foundation
 /// Speech is measured by its speed, seconds of audio per second of work (20× means a minute of
 /// speech in 3 seconds), so a short and a long recording compare fairly. A language model is
 /// measured by the time to its first word (mostly reading the prompt), then its writing speed in
-/// tokens a second, and the whole time.
+/// tokens a second, and the whole time; and by its tokens: the context window, how much of it a
+/// request filled, the sizes in and out, and how many characters fit in a token (how well its
+/// tokenizer knows the language, so the same text costs fewer tokens).
 struct PerfRecord: Identifiable, Equatable {
     enum Kind: String, CaseIterable {
         case dictation
@@ -66,6 +68,23 @@ struct PerfRecord: Identifiable, Equatable {
     var live = false
     /// More to say: the cleanup model, the number of parts.
     var detail: String?
+    /// AI: tokens one request could hold (prompt plus answer), and the most the model was made for.
+    var contextTokens: Int?
+    var modelContextTokens: Int?
+    /// AI: the room the answer had, in tokens.
+    var maxOutputTokens: Int?
+    /// AI: prompt plus answer of the fullest request.
+    var fullestTokens: Int?
+    /// AI: characters of everything sent and of the answer.
+    var inputChars: Int?
+    var outputChars: Int?
+    /// AI: the text worked on alone (no instructions), in characters and in tokens.
+    var textChars: Int?
+    var textTokens: Int?
+    /// AI: requests it took (a long text is read in parts).
+    var requests: Int?
+    /// AI: the answer reached its length limit and was cut off.
+    var cutOff = false
 
     init(kind: Kind, model: String, modelName: String) {
         id = UUID().uuidString
@@ -109,6 +128,34 @@ struct PerfRecord: Identifiable, Equatable {
         return audio / (Double(work) / 1000)
     }
 
+    // MARK: Tokens
+
+    /// How much of the context window the fullest request filled, 0 to 1.
+    var contextUsed: Double? {
+        Perf.ratio(fullestTokens, contextTokens)
+    }
+
+    /// Characters of the text per token: higher means the tokenizer knows the language better.
+    var charsPerToken: Double? {
+        Perf.ratio(textChars, textTokens)
+    }
+
+    var outputCharsPerToken: Double? {
+        Perf.ratio(outputChars, outputTokens)
+    }
+
+    /// Tokens spent on the instructions and the chat layout, not on the text.
+    var instructionTokens: Int? {
+        guard let prompt = promptTokens, let text = textTokens, prompt >= text else { return nil }
+        return prompt - text
+    }
+
+    /// The window was smaller than the model could take: Navo's limit keeps the memory down.
+    var windowIsNavos: Bool {
+        guard let window = contextTokens, let own = modelContextTokens else { return false }
+        return window < own
+    }
+
     /// One line with the numbers that matter for this kind of work.
     var summary: String {
         var parts: [String] = []
@@ -123,12 +170,71 @@ struct PerfRecord: Identifiable, Equatable {
             if let cleanup = cleanupMs, cleanup > 0 { parts.append("cleanup \(Perf.ms(cleanup))") }
         } else {
             if let first = firstTokenMs { parts.append("first word \(Perf.ms(first))") }
-            if let speed = tokensPerSecond { parts.append("\(Int(speed.rounded())) tokens a second") }
+            if let speed = tokensPerSecond { parts.append("\(Perf.int(speed)) tokens a second") }
             if let total = totalMs { parts.append("\(Perf.ms(total)) in all") }
-            if let tokens = outputTokens { parts.append("\(tokens) tokens") }
+            if let prompt = promptTokens, let output = outputTokens {
+                parts.append("\(Perf.count(prompt)) tokens in, \(Perf.count(output)) out")
+            } else if let output = outputTokens {
+                parts.append("\(Perf.count(output)) tokens")
+            }
+            if let used = contextUsed, let window = contextTokens {
+                parts.append("\(Perf.percent(used)) of a \(Perf.count(window)) context")
+            }
+            if cutOff { parts.append("cut off at its length limit") }
         }
         if let load = loadMs, load > 0 { parts.append("model loaded first, \(Perf.ms(load))") }
         return parts.joined(separator: ", ")
+    }
+
+    /// Everything measured about an AI answer, a line each: its tokens, then its time.
+    var writingBreakdown: String {
+        var lines: [String] = []
+        if let window = contextTokens {
+            var line = "Context window: \(Perf.count(window)) tokens a request, prompt and answer together"
+            if let own = modelContextTokens {
+                line += windowIsNavos
+                    ? " (the model was made for \(Perf.count(own)); Navo keeps it smaller to stay within its memory limit)"
+                    : " (all the model was made for)"
+            } else {
+                line += " (how much the model was made for is not known)"
+            }
+            lines.append(line + ".")
+        }
+        if let fullest = fullestTokens, let used = contextUsed {
+            let which = (requests ?? 1) > 1 ? "The fullest request" : "This request"
+            lines.append("\(which) filled \(Perf.count(fullest)) tokens, \(Perf.percent(used)) of the window.")
+        }
+        if let prompt = promptTokens {
+            var line = "In: \(Perf.count(prompt)) tokens"
+            if let chars = inputChars { line += ", \(Perf.count(chars)) characters" }
+            if let text = textTokens, let chars = textChars {
+                line += ". Your text: \(Perf.count(text)) tokens for \(Perf.count(chars)) characters"
+                if let per = charsPerToken { line += " (\(Perf.decimal(per)) characters a token)" }
+            }
+            if let instructions = instructionTokens { line += "; instructions and layout: \(Perf.count(instructions)) tokens" }
+            lines.append(line + ".")
+        }
+        if let output = outputTokens {
+            var line = "Out: \(Perf.count(output)) tokens"
+            if let chars = outputChars {
+                line += ", \(Perf.count(chars)) characters"
+                if let per = outputCharsPerToken { line += " (\(Perf.decimal(per)) a token)" }
+            }
+            if let room = maxOutputTokens { line += ", of up to \(Perf.count(room)) allowed" }
+            if let prompt = promptTokens, prompt > 0 {
+                line += ". \(Perf.decimal(Double(output) / Double(prompt) * 100)) tokens out for every 100 in"
+            }
+            lines.append(line + ".")
+        }
+        if cutOff { lines.append("The answer was cut off: it reached its length limit.") }
+        if let requests, requests > 1 { lines.append("\(requests) requests: a long text read in parts.") }
+        var time: [String] = []
+        if let first = firstTokenMs { time.append("first word after \(Perf.ms(first))") }
+        if let speed = tokensPerSecond { time.append("then \(Perf.decimal(speed)) tokens a second") }
+        if let total = totalMs { time.append("\(Perf.ms(total)) in all") }
+        if let load = loadMs, load > 0 { time.append("loading the model \(Perf.ms(load))") }
+        if !time.isEmpty { lines.append("Time: " + time.joined(separator: ", ") + ".") }
+        return lines.joined(separator: "\n")
     }
 
     /// The breakdown of a dictation's time, for a tooltip.
@@ -155,11 +261,58 @@ enum Perf {
     }
 
     static func seconds(_ value: Double) -> String {
-        value < 60 ? String(format: "%.1f s", value) : String(format: "%d:%02d min", Int(value) / 60, Int(value) % 60)
+        value < 60 ? String(format: "%.1f s", value) : String(format: "%d:%02d min", Perf.int(value.rounded(.down)) / 60, Perf.int(value.rounded(.down)) % 60)
     }
 
     static func speed(_ value: Double) -> String {
-        value >= 10 ? "\(Int(value.rounded()))×" : String(format: "%.1f×", value)
+        value >= 10 ? "\(int(value))×" : String(format: "%.1f×", value)
+    }
+
+    /// A whole number, safe for any double (infinity or NaN would stop the app in Int()).
+    static func int(_ value: Double) -> Int {
+        guard value.isFinite else { return 0 }
+        return Int(min(max(value.rounded(), -1e15), 1e15))
+    }
+
+    /// `part` / `whole`, or nil when either is missing or the whole is zero.
+    static func ratio(_ part: Int?, _ whole: Int?) -> Double? {
+        guard let part, let whole, whole > 0, part >= 0 else { return nil }
+        return Double(part) / Double(whole)
+    }
+
+    private static let grouped: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.maximumFractionDigits = 0
+        return formatter
+    }()
+
+    /// 6144 as "6,144".
+    static func count(_ value: Int) -> String {
+        grouped.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
+    /// 6144 as "6.1K", 131072 as "131K": for the big figures.
+    static func compact(_ value: Int) -> String {
+        switch value {
+        case ..<1000: return "\(value)"
+        case ..<10000: return String(format: "%.1fK", Double(value) / 1000)
+        case ..<1_000_000: return "\(value / 1000)K"
+        default: return String(format: "%.1fM", Double(value) / 1_000_000)
+        }
+    }
+
+    static func percent(_ fraction: Double) -> String {
+        guard fraction.isFinite else { return "–" }
+        let value = fraction * 100
+        return value > 0 && value < 1 ? "<1%" : "\(int(value))%"
+    }
+
+    /// 3.456 as "3.5", 37.2 as "37".
+    static func decimal(_ value: Double) -> String {
+        guard value.isFinite else { return "–" }
+        return value >= 10 ? "\(int(value))" : String(format: "%.1f", value)
     }
 
     static func median(_ values: [Double]) -> Double? {
@@ -188,7 +341,11 @@ final class MetricsStore: ObservableObject {
     }
 
     func record(_ record: PerfRecord) {
-        try? db?.saveMetric(record)
+        do {
+            try db?.saveMetric(record)
+        } catch {
+            ProblemLog.shared.report("Measurements", "Could not save a measurement: \(error.localizedDescription)", once: true)
+        }
         recent.insert(record, at: 0)
         if recent.count > Self.memoryLimit { recent.removeLast(recent.count - Self.memoryLimit) }
         if let ref = record.refID { byRef[ref] = record }
@@ -201,7 +358,11 @@ final class MetricsStore: ObservableObject {
 
     /// Drops measurements older than `keepDays`, and those of dictations and recordings that were deleted.
     func prune() {
-        try? db?.pruneMetrics(before: Date().addingTimeInterval(-Double(Self.keepDays) * 86_400))
+        do {
+            try db?.pruneMetrics(before: Date().addingTimeInterval(-Double(Self.keepDays) * 86_400))
+        } catch {
+            ProblemLog.shared.report("Measurements", "Could not drop old measurements: \(error.localizedDescription)", once: true)
+        }
         reload()
     }
 
@@ -211,7 +372,12 @@ final class MetricsStore: ObservableObject {
     }
 
     private func reload() {
-        recent = (try? db?.metrics(limit: Self.memoryLimit)) ?? []
+        do {
+            recent = try db?.metrics(limit: Self.memoryLimit) ?? []
+        } catch {
+            recent = []
+            ProblemLog.shared.report("Measurements", "Could not read the measurements: \(error.localizedDescription)", once: true)
+        }
         var map: [String: PerfRecord] = [:]
         for record in recent.reversed() {
             if let ref = record.refID { map[ref] = record }
@@ -240,6 +406,16 @@ final class MetricsStore: ObservableObject {
         let tokensPerSecond: Double?
         let totalMs: Double?
         let loadMs: Double?
+        /// The latest window, and the most the model was made for.
+        let contextTokens: Int?
+        let modelContextTokens: Int?
+        /// Typical tokens in and out of an answer, and how full the window was.
+        let promptTokens: Double?
+        let outputTokens: Double?
+        let contextUsed: Double?
+        /// Characters of your text per token.
+        let charsPerToken: Double?
+        let cutOffs: Int
         var id: String { model }
     }
 
@@ -263,17 +439,38 @@ final class MetricsStore: ObservableObject {
     }
 
     var writingSummaries: [WritingSummary] {
-        Dictionary(grouping: recent.filter { !$0.kind.isSpeech }, by: \.model).map { model, records in
-            WritingSummary(
-                model: model,
-                name: records.first?.modelName ?? model,
-                count: records.count,
-                firstTokenMs: Perf.median(records.compactMap(\.firstTokenMs).map(Double.init)),
-                tokensPerSecond: Perf.median(records.compactMap(\.tokensPerSecond)),
-                totalMs: Perf.median(records.compactMap(\.totalMs).map(Double.init)),
-                loadMs: Perf.median(records.compactMap(\.loadMs).filter { $0 > 0 }.map(Double.init))
-            )
-        }
-        .sorted { $0.count > $1.count }
+        Dictionary(grouping: recent.filter { !$0.kind.isSpeech }, by: \.model)
+            .map { Self.writingSummary(model: $0.key, records: $0.value) }
+            .sorted { $0.count > $1.count }
+    }
+
+    private static func writingSummary(model: String, records: [PerfRecord]) -> WritingSummary {
+        func median(_ values: [Int]) -> Double? { Perf.median(values.map(Double.init)) }
+        let firstToken = median(records.compactMap(\.firstTokenMs))
+        let speed = Perf.median(records.compactMap(\.tokensPerSecond))
+        let total = median(records.compactMap(\.totalMs))
+        let load = median(records.compactMap(\.loadMs).filter { $0 > 0 })
+        let window = records.lazy.compactMap(\.contextTokens).first
+        let own = records.lazy.compactMap(\.modelContextTokens).first
+        let prompt = median(records.compactMap(\.promptTokens))
+        let output = median(records.compactMap(\.outputTokens))
+        let used = Perf.median(records.compactMap(\.contextUsed))
+        let perToken = Perf.median(records.compactMap(\.charsPerToken))
+        return WritingSummary(
+            model: model,
+            name: records.first?.modelName ?? model,
+            count: records.count,
+            firstTokenMs: firstToken,
+            tokensPerSecond: speed,
+            totalMs: total,
+            loadMs: load,
+            contextTokens: window,
+            modelContextTokens: own,
+            promptTokens: prompt,
+            outputTokens: output,
+            contextUsed: used,
+            charsPerToken: perToken,
+            cutOffs: records.filter(\.cutOff).count
+        )
     }
 }

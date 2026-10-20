@@ -3,6 +3,13 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.17.0
+
+- **See how a model spends its tokens.** Settings > Performance now shows, for each language model, its context window (what one request can hold, and the most the model was made for), the tokens in and out of a typical answer, how full the window was, and how many characters of your text fit in a token. That last one shows how well a model knows a language: on the same Arabic text Gemma fits 3.1 characters in a token, Qwen3 2.7, a small model 1.0, so the same text costs it three times as many tokens. Details on each recent answer shows every figure: the instructions' share, the answer's room, whether it was cut off.
+- **Counted right for GGUF models.** llama.cpp sometimes sends several tokens in one piece (an Arabic letter can take two), so answers were counted short. Navo now counts them the way llama.cpp does.
+- **A model is never asked for more than it was made for.** A model you added with a context shorter than Navo's limit gets requests that fit it, and a longer text is read in parts.
+- **A problems log.** When something fails, a model, a transcription, the engine, or a figure that could not be measured, Navo carries on and notes what happened and why in Settings > Performance > Problems log (and Logs/problems.log), so it can be fixed later. Copy all puts it on the clipboard. Only the problem is written, never your text.
+
 ## 0.16.0
 
 - **See how fast each model is.** A new Performance page in Settings, from your own use: for speech to text, the speed in "× real time" (seconds of audio per second of work, so short and long recordings compare fairly), the wait after you let go of the key, the cleanup time and the time to wake a model up; for AI writing, the time to the first word, the writing speed in tokens a second and the whole time. With what each number means, and the recent runs one by one. Each dictation in History shows its speed, and hovering shows where the time went. Only numbers are kept, never text.

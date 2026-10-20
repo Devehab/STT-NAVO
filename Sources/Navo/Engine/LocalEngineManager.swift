@@ -186,7 +186,13 @@ final class LocalEngineManager: ObservableObject {
         }
     }
 
-    @Published private(set) var state: State
+    @Published private(set) var state: State {
+        didSet {
+            if case .failed(let message) = state, state != oldValue {
+                ProblemLog.shared.report("Engine", message)
+            }
+        }
+    }
     @Published private(set) var engines: [SpeechEngine: EngineInfo] = [:]
     @Published private(set) var installProgress: Double = 0
     @Published private(set) var installStatus = ""

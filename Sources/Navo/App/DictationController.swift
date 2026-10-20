@@ -339,6 +339,7 @@ final class DictationController: ObservableObject {
         do {
             try recorder.start()
         } catch {
+            ProblemLog.shared.report("Dictation", "Could not start recording: \(error.localizedDescription)")
             show(.failed(error.localizedDescription))
             return
         }
@@ -418,6 +419,7 @@ final class DictationController: ObservableObject {
         do {
             try WAVWriter.write(samples: recording.samples, sampleRate: Int(AudioRecorder.sampleRate), to: audioURL)
         } catch {
+            ProblemLog.shared.report("Dictation", "Could not save the recording: \(error.localizedDescription)")
             if run.isEmpty {
                 show(.failed("Could not save the recording: \(error.localizedDescription)"))
             } else {
@@ -638,12 +640,12 @@ final class DictationController: ObservableObject {
         var item = draft
         let started = Date()
         guard let audioPath = item.audioPath else {
-            return (.failed(item, "The recording file is missing"), timing)
+            return (failed(item, "The recording file is missing"), timing)
         }
         let audioURL = URL(fileURLWithPath: audioPath)
 
         guard await engine.waitUntilReady(timeout: 120) else {
-            return (.failed(item, engine.state.userMessage.isEmpty ? "The local engine is not ready" : engine.state.userMessage), timing)
+            return (failed(item, engine.state.userMessage.isEmpty ? "The local engine is not ready" : engine.state.userMessage), timing)
         }
 
         let speech = settings.dictationEngine
@@ -669,6 +671,9 @@ final class DictationController: ObservableObject {
             item.cleanText = cleanup.text
             item.cleanup = cleanup.mode
             item.errorMessage = cleanup.note // why cleanup was skipped, shown in History
+            if let note = cleanup.note {
+                ProblemLog.shared.report("Cleanup", note, once: true)
+            }
             item.language = TextTools.detectLanguage(cleanup.text)
             item.wordCount = TextTools.wordCount(cleanup.text)
             item.latencyMs = Int(Date().timeIntervalSince(started) * 1000)
@@ -676,8 +681,14 @@ final class DictationController: ObservableObject {
             // The recording stays until the text is pasted: a change of language redoes it from there.
             return (.text(item), timing)
         } catch {
-            return (.failed(item, error.localizedDescription), timing)
+            return (failed(item, error.localizedDescription), timing)
         }
+    }
+
+    /// A dictation that could not be written: noted in the problems log, kept in History to retry.
+    private func failed(_ item: Dictation, _ message: String) -> Outcome {
+        ProblemLog.shared.report("Dictation", "\(settings.dictationEngine.title): \(message)")
+        return .failed(item, message)
     }
 
     private func fail(_ draft: Dictation, message: String) {

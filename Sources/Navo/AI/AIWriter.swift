@@ -59,19 +59,33 @@ final class AIWriter: ObservableObject {
 
     /// A tiny request that proves the model loads and answers, with its speed and memory.
     func test(_ model: WritingModel) async throws -> TestResult {
-        try await ensureEngine()
-        guard isDownloaded(model) else { throw notDownloaded(model) }
-        let started = Date()
-        let answer = try await client(model).write(
-            system: "Reply with one short friendly sentence.",
-            user: "Say that you are ready to write.",
-            temperature: 0.2,
-            maxTokens: 40
-        )
-        record(answer, model: model, kind: .test, started: started, detail: "the test sentence")
-        let result = TestResult(reply: answer.text, seconds: Date().timeIntervalSince(started), stats: stats(answer))
-        engine.unloadWritingModels()
-        return result
+        try await logged("Testing \(model.title)") {
+            try await ensureEngine()
+            guard isDownloaded(model) else { throw notDownloaded(model) }
+            let started = Date()
+            let answer = try await client(model).write(
+                system: "Reply with one short friendly sentence.",
+                user: "Say that you are ready to write.",
+                temperature: 0.2,
+                maxTokens: 40
+            )
+            record(answer, model: model, kind: .test, started: started, detail: "the test sentence")
+            let result = TestResult(reply: answer.text, seconds: Date().timeIntervalSince(started), stats: stats(answer))
+            engine.unloadWritingModels()
+            return result
+        }
+    }
+
+    /// Runs `body`; a failure goes to the problems log on its way to the caller (who shows it).
+    private func logged<T>(_ what: String, _ body: () async throws -> T) async throws -> T {
+        do {
+            return try await body()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            ProblemLog.shared.report("AI writing", "\(what): \(error.localizedDescription)")
+            throw error
+        }
     }
 
     /// Makes `action` from `text`. A text longer than the model reads at once is read in parts
@@ -84,6 +98,19 @@ final class AIWriter: ObservableObject {
         fresh: Bool = false,
         onStatus: (@MainActor @Sendable (String) -> Void)? = nil,
         onText: (@MainActor @Sendable (String) -> Void)? = nil
+    ) async throws -> AIAnswer {
+        try await logged(action.title) {
+            try await write(action, on: text, language: language, fresh: fresh, onStatus: onStatus, onText: onText)
+        }
+    }
+
+    private func write(
+        _ action: WritingAction,
+        on text: String,
+        language: OutputLanguage,
+        fresh: Bool,
+        onStatus: (@MainActor @Sendable (String) -> Void)?,
+        onText: (@MainActor @Sendable (String) -> Void)?
     ) async throws -> AIAnswer {
         try await ensureEngine()
         guard let model = readyModel else { throw notDownloaded(settings.writingModel) }
@@ -108,6 +135,11 @@ final class AIWriter: ObservableObject {
             } catch let failure as WritingClient.Failure where failure.tooLong && limit > 800 {
                 // Text that takes more tokens than usual (rare scripts, long codes): smaller parts.
                 limit /= 2
+                ProblemLog.shared.report(
+                    "AI writing",
+                    "\(model.title): a part did not fit the context window (\(failure.message)) Navo read the text in smaller parts and went on.",
+                    once: true
+                )
             }
         }
         if partCount > 1 {
@@ -152,10 +184,10 @@ final class AIWriter: ObservableObject {
         }
 
         if action == .tidy {
-            var whole = WritingClient.Answer(text: "")
+            var whole: WritingClient.Answer?
             for (index, part) in parts.enumerated() {
                 onStatus?("Rewriting part \(index + 1) of \(parts.count)…")
-                let before = whole.text
+                let before = whole?.text ?? ""
                 let piece = try await client.write(
                     system: action.instructions(language: language),
                     user: part,
@@ -164,13 +196,15 @@ final class AIWriter: ObservableObject {
                 ) { soFar in
                     onText?(before.isEmpty ? soFar : before + "\n\n" + soFar)
                 }
-                whole.text = before.isEmpty ? piece.text : before + "\n\n" + piece.text
-                whole.merge(piece)
+                if whole == nil { whole = piece } else { whole?.merge(piece) }
+                whole?.text = before.isEmpty ? piece.text : before + "\n\n" + piece.text
             }
-            return (whole, parts.count)
+            return (whole ?? WritingClient.Answer(text: ""), parts.count)
         }
 
         // Notes of every part, then notes of the notes while they are still too long to read at once.
+        // Their tokens count too: the answer's figures are those of every request it took.
+        var spent: WritingClient.Answer?
         var material = parts
         var round = 1
         while material.count > 1 {
@@ -186,6 +220,7 @@ final class AIWriter: ObservableObject {
                     maxTokens: 500
                 )
                 notes.append(taken.text)
+                if spent == nil { spent = taken } else { spent?.merge(taken) }
             }
             let joined = notes.joined(separator: "\n")
             let next = TextParts.split(joined, limit: limit)
@@ -201,7 +236,10 @@ final class AIWriter: ObservableObject {
             maxTokens: action.maxTokens,
             onText: onText
         )
-        return (answer, parts.count)
+        guard var whole = spent else { return (answer, parts.count) }
+        whole.merge(answer)
+        whole.text = answer.text
+        return (whole, parts.count)
     }
 
     // MARK: Engine
@@ -241,7 +279,21 @@ final class AIWriter: ObservableObject {
         record.outputTokens = answer.completionTokens > 0 ? answer.completionTokens : nil
         record.loadMs = answer.loadMs
         record.detail = detail
+        record.contextTokens = answer.contextTokens
+        record.modelContextTokens = answer.modelContextTokens
+        record.maxOutputTokens = answer.maxOutputTokens
+        record.fullestTokens = answer.fullestTokens
+        record.inputChars = answer.inputChars
+        record.outputChars = answer.outputChars
+        record.textChars = answer.textChars
+        record.textTokens = answer.textTokens
+        record.requests = answer.requests
+        record.cutOff = answer.finishReason == "length"
         metrics?.record(record)
+        // A figure the engine could not give: the answer is fine, the measurement is not complete.
+        for problem in answer.problems {
+            ProblemLog.shared.report("Measurements", "\(model.title): \(problem)", once: true)
+        }
     }
 
     /// Time to the first word, writing speed, the whole time, and the memory the models process
@@ -255,10 +307,17 @@ final class AIWriter: ObservableObject {
             parts.append(text)
         }
         if let speed = answer.decodeTokensPerSecond ?? answer.tokensPerSecond, speed > 0 {
-            parts.append("then \(Int(speed.rounded())) tokens a second")
+            parts.append("then \(Perf.int(speed)) tokens a second")
         }
         if let total = answer.totalMs {
             parts.append("\(Perf.ms(total)) in all")
+        }
+        if answer.promptTokens > 0 {
+            var tokens = "\(Perf.count(answer.promptTokens)) tokens in, \(Perf.count(answer.completionTokens)) out"
+            if let window = answer.contextTokens, let fullest = answer.fullestTokens, let used = Perf.ratio(fullest, window) {
+                tokens += " (\(Perf.percent(used)) of a \(Perf.count(window)) context)"
+            }
+            parts.append(tokens)
         }
         let memory = max(UInt64(max(0, answer.peakMemoryBytes ?? 0)), engine.modelsMemory ?? 0)
         if memory > 0 {
@@ -280,5 +339,20 @@ private extension WritingClient.Answer {
         decodeTokensPerSecond = other.decodeTokensPerSecond ?? decodeTokensPerSecond
         loadMs = max(loadMs ?? 0, other.loadMs ?? 0)
         totalMs = (totalMs ?? 0) + (other.totalMs ?? 0)
+        contextTokens = other.contextTokens ?? contextTokens
+        modelContextTokens = other.modelContextTokens ?? modelContextTokens
+        maxOutputTokens = other.maxOutputTokens ?? maxOutputTokens
+        inputChars = Self.sum(inputChars, other.inputChars)
+        outputChars = Self.sum(outputChars, other.outputChars)
+        textChars = Self.sum(textChars, other.textChars)
+        textTokens = Self.sum(textTokens, other.textTokens)
+        requests += other.requests
+        fullestTokens = [fullestTokens, other.fullestTokens].compactMap { $0 }.max()
+        problems += other.problems.filter { !problems.contains($0) }
+    }
+
+    private static func sum(_ a: Int?, _ b: Int?) -> Int? {
+        guard a != nil || b != nil else { return nil }
+        return (a ?? 0) + (b ?? 0)
     }
 }

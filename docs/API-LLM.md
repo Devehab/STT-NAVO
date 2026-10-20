@@ -192,6 +192,14 @@ The values are illustrative.
 | `usage` | Tokens in the prompt, in the answer, and together |
 | `navo.seconds`, `navo.tokens_per_second` | How long the writing took and how fast it was, loading not included |
 | `navo.peak_memory_bytes` | The most memory MLX used for this answer, weights included |
+| `navo.load_ms` | The model was asleep and loaded for this request, this long (0 when it was in memory) |
+| `navo.first_token_ms`, `navo.decode_tokens_per_second`, `navo.prompt_tokens_per_second` | Time to the first token, the writing speed after it, and how fast the prompt was read |
+| `navo.context_tokens` | The context window of this request, prompt and answer together: Navo's limit (`--llm-context`, 6144), or the model's own when that is smaller |
+| `navo.model_context_tokens` | The longest context the model was made for (its config.json, or the GGUF file); `null` when it does not say |
+| `navo.max_output_tokens` | The room the answer had, in tokens |
+| `navo.input_chars`, `navo.output_chars` | Characters of every message sent, and of the answer |
+| `navo.text_chars`, `navo.text_tokens` | The last user message alone, in characters and in tokens: characters a token shows how well the model's tokenizer knows the language |
+| `navo.problems` | Only when something could not be measured: what and why. The answer itself is never held back by a measurement |
 | `model` | The weights that answered |
 
 ### Streaming

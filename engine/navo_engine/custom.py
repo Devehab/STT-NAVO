@@ -218,6 +218,21 @@ def gguf_generate(model: Any, tokenizer: Any, prompt: list[int], options: dict) 
         repeat_penalty=float(penalty) if penalty else 1.0,
         stream=True,
     )
-    for chunk in stream:
-        choice = (chunk.get("choices") or [{}])[0]
-        yield choice.get("text") or "", choice.get("finish_reason")
+    tally = options.get("tally")
+    reason = None
+    try:
+        for chunk in stream:
+            choice = (chunk.get("choices") or [{}])[0]
+            reason = choice.get("finish_reason") or reason
+            yield choice.get("text") or "", choice.get("finish_reason")
+    finally:
+        # A piece can hold several tokens, and the last one is empty: count from llama.cpp's own
+        # position instead. The last token is evaluated only when more were to come, so add it
+        # back when the answer stopped at its length limit.
+        if isinstance(tally, dict):
+            try:
+                written = int(model.n_tokens) - len(prompt) + (1 if reason == "length" else 0)
+                if written >= 0:
+                    tally["tokens"] = written
+            except Exception:
+                pass
