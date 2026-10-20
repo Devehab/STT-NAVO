@@ -3,6 +3,11 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.17.1
+
+- **Select across paragraphs in a transcript.** In Notetaker and Transcribe, live or finished, the transcript is now one text: drag over as many paragraphs as you like, or press ⌘A for all of it, then ⌘C. Select All and Copy are also in the right-click menu, ⌘F finds a word, and what you copy is plain text with its times. A selection stays selected while new live text arrives, and the text stops following the newest line while you select or scroll up to read.
+- **Copy the live text in one click.** A Copy button next to Stop live text copies everything so far, with its times.
+
 ## 0.17.0
 
 - **See how a model spends its tokens.** Settings > Performance now shows, for each language model, its context window (what one request can hold, and the most the model was made for), the tokens in and out of a typical answer, how full the window was, and how many characters of your text fit in a token. That last one shows how well a model knows a language: on the same Arabic text Gemma fits 3.1 characters in a token, Qwen3 2.7, a small model 1.0, so the same text costs it three times as many tokens. Details on each recent answer shows every figure: the instructions' share, the answer's room, whether it was cut off.

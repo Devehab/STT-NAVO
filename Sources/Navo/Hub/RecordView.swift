@@ -134,6 +134,7 @@ struct RecordView: View {
 private struct RecordingPanel: View {
     @EnvironmentObject private var sessions: SessionStore
     @EnvironmentObject private var recorder: MeetingRecorder
+    @State private var copied = false
 
     private var session: Session? { recorder.sessionID.flatMap { sessions.session($0) } }
 
@@ -208,6 +209,9 @@ private struct RecordingPanel: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                     Spacer()
+                    Button(copied ? "Copied" : "Copy") { copyAll(session) }
+                        .disabled(session.chunks.allSatisfy { ($0.text ?? "").isEmpty } && sessions.liveDraft[session.id] == nil)
+                        .help("Copies all the text so far, with its times. To copy part of it, select it in the text (across as many paragraphs as you like) and press ⌘C.")
                     if recorder.isLive {
                         Button("Stop live text") { sessions.cancel(session.id) }
                             .help("The recording goes on. Continue transcribes the rest after it stops.")
@@ -276,6 +280,23 @@ private struct RecordingPanel: View {
         }
         let every = PieceLengthPicker.title(Int(recorder.livePieceSeconds)).lowercased()
         return "Live text with \(engine), \(language), a new part \(every)."
+    }
+}
+
+extension RecordingPanel {
+    /// The text so far, final and live, with times.
+    private func copyAll(_ session: Session) {
+        var text = SessionStore.timedTranscript(session)
+        if recorder.isLive, let draft = sessions.liveDraft[session.id], !draft.isEmpty {
+            let live = [draft.text, draft.preview?.text ?? ""].filter { !$0.isEmpty }.joined(separator: " ")
+            text += (text.isEmpty ? "" : "\n\n") + live
+        }
+        TextInjector.copy(text)
+        copied = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            copied = false
+        }
     }
 }
 
