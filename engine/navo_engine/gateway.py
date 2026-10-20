@@ -70,6 +70,8 @@ class Gateway:
         self.default_engine = (args.default_engine or (self.enabled[0] if self.enabled else "cohere")).lower()
         self.models = model_overrides(args)
         self.llm_models = llm_overrides(args)
+        # Speech models stay beside a language model (--llm-with-speech); outlives the worker.
+        self.together = bool(getattr(args, "llm_with_speech", False))
         self.last_llms: dict[str, dict] = {}  # last report from the worker
         self.idle_minutes = idle_minutes
         self.check_interval = check_interval
@@ -339,6 +341,7 @@ class Gateway:
                 "worker": self.state,
                 "sleeping": worker_pid is None,
                 "idle_minutes": self.idle_minutes,
+                "llm_with_speech": self.together,
                 "gguf_runtime": gguf_runtime_version(),
                 "host": self.args.host,
                 "port": self.args.port,
@@ -374,6 +377,8 @@ def default_worker_command(gateway: Gateway, preload_all: bool) -> list[str]:
         command.append("--allow-download")
     if not preload_all or args.no_preload_llm:
         command.append("--no-preload-llm")
+    if gateway.together:
+        command.append("--llm-with-speech")
     return command
 
 
@@ -459,6 +464,15 @@ def create_gateway_app(gateway: Gateway) -> FastAPI:
             code = gateway.process.returncode if gateway.process is not None else None
             gateway.process, gateway.state = None, "sleeping"
             gateway.failure = f"The model worker stopped unexpectedly (exit code {code}). It restarts on the next request."
+            if code == -9:
+                # SIGKILL from macOS: almost always the Mac ran out of memory.
+                gateway.failure = (
+                    "macOS stopped the model worker, most likely because the Mac ran out of memory. "
+                    + ("Keep transcribing while AI writes holds a speech model and a language model together: "
+                       "close other large apps, or turn it off in Settings > Cleanup and AI. " if gateway.together else
+                       "Close other large apps. ")
+                    + "It restarts on the next request."
+                )
             gateway.waking.clear()
             gateway.last_report = None
             log.warning("%s", gateway.failure)
@@ -515,6 +529,23 @@ def create_gateway_app(gateway: Gateway) -> FastAPI:
             return JSONResponse({"detail": f"Unknown engine '{engine_id}'. Use one of: {known}"}, status_code=404)
         data = await report()
         return JSONResponse(next(e for e in data["engines"] if e["id"] == engine_id))
+
+    @app.post("/v1/llms/together")
+    async def set_together(request: Request) -> Response:
+        """Speech models stay beside a language model, or take turns with it. Kept for the next
+        worker too; a running worker changes at once, without stopping what it does."""
+        try:
+            on = bool((await request.json()).get("on"))
+        except (ValueError, AttributeError):
+            return JSONResponse({"detail": 'Send JSON like {"on": true}'}, status_code=400)
+        gateway.together = on
+        if gateway.running:
+            try:
+                await gateway.client.post("/v1/llms/together", json={"on": on}, timeout=10.0)
+            except httpx.HTTPError as exc:  # the next worker starts with it anyway
+                log.warning("Could not tell the worker: %s", exc)
+        log.info("Language models %s the speech models", "stay beside" if on else "take turns with")
+        return JSONResponse({"llm_with_speech": gateway.together})
 
     @app.post("/v1/llms/unload")
     async def unload_llms(request: Request) -> Response:

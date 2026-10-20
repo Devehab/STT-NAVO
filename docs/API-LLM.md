@@ -67,6 +67,14 @@ What a request does, step by step:
 
 While a language model writes, a transcription request simply waits its turn: a meeting that is being recorded keeps recording, and its live text continues once the answer is done. That transcription then sends the language model away and loads its speech engine again, with no error and no change for the client, only a few seconds more.
 
+**Both at once (Navo > Settings > Cleanup and AI > Keep transcribing while AI writes).** On a Mac with memory to spare, the speech models can stay loaded beside the language model. Steps 2 and 5 then leave them alone, and a transcription or cleanup that arrives while an answer is being written runs between two of its tokens, on the same model thread: live text keeps coming during a summary (on an M-series Mac with 16 GB, about 1.2 s for 8 s of speech while Gemma writes), and the answer is written more slowly while it shares. Together they take about 8 to 10 GB. Turn it on or off without a restart:
+
+```bash
+curl -s -X POST http://127.0.0.1:7861/v1/llms/together -H 'Content-Type: application/json' -d '{"on": true}'
+```
+
+The answer is `{"llm_with_speech": true}`, and `GET /health` shows the same field. Starting the engine with `--llm-with-speech` turns it on from the start. If macOS stops the models process because memory ran out, `/health` says so in `worker_error`, and the next request starts it again.
+
 The numbers are measured, not promised: every response carries `navo.peak_memory_bytes` (the most memory MLX used for that answer, weights included), `GET /v1/llms` shows the highest value of the session, and Navo > Settings > AI writing > Test shows what macOS counts for the models process.
 
 ## Before you call it

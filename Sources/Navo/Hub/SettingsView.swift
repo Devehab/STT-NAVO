@@ -693,6 +693,23 @@ struct SettingsView: View {
                     .help(engine.isInstalled ? "Pick one from LM Studio or choose a folder" : "Install the local engine first")
             }
             WritingTestRow()
+            SettingToggle(
+                "Keep transcribing while AI writes",
+                detail: "The speech models stay in memory beside the language model, so a meeting's live text and files in Transcribe go on while you summarize or rewrite (they are transcribed between the AI's words), and dictation still works. Off: the AI and the speech models take turns, so transcription waits until the answer is done.",
+                isOn: Binding(get: { settings.aiWithSpeech }, set: { engine.setAIWithSpeech($0) })
+            )
+            if settings.aiWithSpeech {
+                let gigabytes = Int((Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824).rounded())
+                Label(
+                    gigabytes <= 16
+                        ? "This Mac has \(gigabytes) GB of memory. Gemma and a speech model together take about 8 to 10 GB: close other large apps (LM Studio, a browser with many tabs) while both are loaded, or macOS may stop Navo's engine to free memory. It restarts by itself; turn this off if it happens."
+                        : "Uses about 8 to 10 GB while both are loaded (this Mac has \(gigabytes) GB). The language model still leaves memory when you close the AI panel.",
+                    systemImage: gigabytes <= 16 ? "exclamationmark.triangle" : "memorychip"
+                )
+                .font(.caption)
+                .foregroundStyle(gigabytes <= 16 ? Color.orange : Color.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
             DisclosureGroup("Advanced") {
                 ModelIDField(title: "Gemma model", value: $settings.gemmaModel, fallback: WritingModel.gemma.defaultModel)
                 ModelIDField(title: "Llama model", value: $settings.llamaModel, fallback: WritingModel.llama.defaultModel)
@@ -703,7 +720,7 @@ struct SettingsView: View {
         } header: {
             SectionTitle("AI writing, on this Mac", "sparkles")
         } footer: {
-            Text("The AI button in Home, Notetaker and Transcribe summarizes a text or rewrites it as an email, a text message or a clean rewrite, in English or Arabic whatever the text is in. An open language model on this Mac writes it: the text never leaves the Mac, and it works with no internet.\n\nMemory: a language model and a speech model are never loaded together. When you ask for a summary the speech models step out of memory, the language model loads, writes and leaves again when you close the AI panel (or a minute after an answer); the speech model comes back the next time you dictate. A recording that is running keeps recording, and its live text waits until the summary is done. Gemma and Llama stay under 6 GB; a model you add uses what its size needs.\n\nModels you add run where they are: an MLX folder on MLX, a GGUF file on llama.cpp (added to Navo's engine the first time). Removing one only takes it out of Navo; its files stay.\n\nOther apps can use them through the local API: \(settings.engineBaseURL.absoluteString)/gemma/v1, /llama/v1 and /custom-…/v1 for the ones you add (docs/API-LLM.md).")
+            Text("The AI button in Home, Notetaker and Transcribe summarizes a text or rewrites it as an email, a text message or a clean rewrite, in English or Arabic whatever the text is in. An open language model on this Mac writes it: the text never leaves the Mac, and it works with no internet.\n\nMemory: unless Keep transcribing while AI writes is on, a language model and a speech model are never loaded together. When you ask for a summary the speech models step out of memory, the language model loads, writes and leaves again when you close the AI panel (or a minute after an answer); the speech model comes back the next time you dictate. A recording that is running keeps recording, and its live text waits until the summary is done. Gemma and Llama stay under 6 GB; a model you add uses what its size needs.\n\nModels you add run where they are: an MLX folder on MLX, a GGUF file on llama.cpp (added to Navo's engine the first time). Removing one only takes it out of Navo; its files stay.\n\nOther apps can use them through the local API: \(settings.engineBaseURL.absoluteString)/gemma/v1, /llama/v1 and /custom-…/v1 for the ones you add (docs/API-LLM.md).")
                 .foregroundStyle(.secondary)
         }
     }

@@ -141,6 +141,7 @@ final class LocalEngineManager: ObservableObject {
         let workerPid: Int32?
         let sleeping: Bool?
         let idleMinutes: Double?
+        let llmWithSpeech: Bool?
         let workerError: String?
         let status: String
         let backend: String?
@@ -226,6 +227,7 @@ final class LocalEngineManager: ObservableObject {
     private var stopping = false
     private var synced = false
     private var postingIdle = false
+    private var postingTogether = false
     private var pendingOutput = Data()
 
     init(settings: AppSettings) {
@@ -447,6 +449,9 @@ final class LocalEngineManager: ObservableObject {
         if settings.cleanupMode != .local {
             arguments.append("--no-preload-llm")
         }
+        if settings.aiWithSpeech {
+            arguments.append("--llm-with-speech")
+        }
         process.arguments = arguments
         process.environment = engineEnvironment(source: source)
 
@@ -607,9 +612,20 @@ final class LocalEngineManager: ObservableObject {
             mlxLMVersion: health.mlxLmVersion,
             memoryBytes: memory
         )
+        if let problem = next.workerError, problem != details?.workerError {
+            ProblemLog.shared.report("Engine", problem)
+        }
         if next != details { details = next }
 
         // A change made while the engine was starting did not reach it yet.
+        if let remote = health.llmWithSpeech, remote != settings.aiWithSpeech, !postingTogether {
+            postingTogether = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.post("v1/llms/together", json: ["on": self.settings.aiWithSpeech])
+                self.postingTogether = false
+            }
+        }
         if let remote = health.idleMinutes, Int(remote) != settings.idleMinutes, !postingIdle {
             postingIdle = true
             Task { @MainActor [weak self] in
@@ -707,6 +723,16 @@ final class LocalEngineManager: ObservableObject {
             request.timeoutInterval = 200 // includes starting the model worker
             _ = try? await URLSession.shared.data(for: request)
             await self.refresh()
+        }
+    }
+
+    /// Speech models stay beside a language model (live text goes on during a summary), or take
+    /// turns with it. A running engine changes at once, without a restart.
+    func setAIWithSpeech(_ on: Bool) {
+        settings.aiWithSpeech = on
+        guard isRunning else { return }
+        Task { @MainActor [weak self] in
+            await self?.post("v1/llms/together", json: ["on": on])
         }
     }
 

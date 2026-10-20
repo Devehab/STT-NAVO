@@ -34,6 +34,7 @@ def fake_command(gateway, preload_all):
         "--preload", ",".join(gateway.enabled) if preload_all else "none",
         "--llm-keep-alive", str(gateway.args.llm_keep_alive),
         "--parent-pid", str(os.getpid()),
+        *(["--llm-with-speech"] if gateway.together else []),
     ]
 
 
@@ -263,3 +264,22 @@ def test_worker_command_passes_the_language_models():
     assert flags["--gemma-model"] == "mlx-community/gemma-4-e4b-it-4bit"
     assert flags["--llama-model"] == "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
     assert flags["--llm-context"] == "4096" and flags["--llm-keep-alive"] == "15.0"
+
+
+def test_together_outlives_the_worker(pythonpath):
+    from navo_engine.gateway import default_worker_command
+
+    gateway = make_gateway()
+    assert "--llm-with-speech" not in default_worker_command(gateway, preload_all=False)
+    with TestClient(create_gateway_app(gateway)) as client:
+        # Asleep: kept for the worker that starts next.
+        assert client.post("/v1/llms/together", json={"on": True}).json() == {"llm_with_speech": True}
+        assert client.get("/health").json()["llm_with_speech"] is True and gateway.process is None
+        assert "--llm-with-speech" in default_worker_command(gateway, preload_all=False)
+        assert post_audio(client, "/cohere/v1/audio/transcriptions").status_code == 200
+        assert client.get("/health").json()["llm_with_speech"] is True  # the worker's own word
+        # Running: the worker changes at once, without a restart.
+        pid = gateway.process.pid
+        assert client.post("/v1/llms/together", json={"on": False}).json() == {"llm_with_speech": False}
+        assert gateway.process.pid == pid and client.get("/health").json()["llm_with_speech"] is False
+    assert make_gateway(extra=["--llm-with-speech"]).together

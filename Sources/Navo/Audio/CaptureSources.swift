@@ -154,6 +154,22 @@ final class SystemAudioCapture: SampleSource {
         if let failure { throw failure }
     }
 
+    /// Navo's own process as Core Audio knows it, or nothing when it cannot say.
+    static func ownProcessObject() -> [AudioObjectID] {
+        var pid = getpid()
+        var object = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyTranslatePIDToProcessObject,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &address, UInt32(MemoryLayout<pid_t>.size), &pid, &size, &object
+        )
+        return status == noErr && object != kAudioObjectUnknown ? [object] : []
+    }
+
     func stop() {
         controlQueue.sync {
             running = false
@@ -163,11 +179,19 @@ final class SystemAudioCapture: SampleSource {
     }
 
     private func build() throws {
-        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
+        // Everything the Mac plays except Navo itself: an old recording played in Navo while
+        // this one records stays out of it. If macOS will not leave Navo out, everything, as before.
+        let own = Self.ownProcessObject()
+        var description = CATapDescription(stereoGlobalTapButExcludeProcesses: own)
         description.uuid = UUID()
 
         var tap = AudioObjectID(kAudioObjectUnknown)
         var status = AudioHardwareCreateProcessTap(description, &tap)
+        if status != noErr, !own.isEmpty {
+            description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
+            description.uuid = UUID()
+            status = AudioHardwareCreateProcessTap(description, &tap)
+        }
         guard status == noErr else { throw CaptureError.systemAudio("creating the tap", status) }
         tapID = tap
 

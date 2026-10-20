@@ -77,6 +77,7 @@ def main():
     parser.add_argument("--preload", type=engine_list_arg, default=[])
     parser.add_argument("--parent-pid", type=int, default=0)
     parser.add_argument("--llm-keep-alive", type=float, default=60.0)
+    parser.add_argument("--llm-with-speech", action="store_true")
     args, _ = parser.parse_known_args()
     if args.parent_pid:
         watch_parent(args.parent_pid)
@@ -87,6 +88,7 @@ def main():
         enabled=args.engines,
         llms={llm_id: language_model(llm_id) for llm_id in LLM_PROFILES},
         keep_alive=args.llm_keep_alive,
+        together=args.llm_with_speech,
     )
     engine.start_loading([e for e in args.preload if e in args.engines], preload_llm=False)
     uvicorn.run(create_app(engine), uds=args.uds, log_level="warning")

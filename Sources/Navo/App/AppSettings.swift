@@ -174,6 +174,7 @@ final class AppSettings: ObservableObject {
         static let qwen3Enabled = "qwen3Enabled"
         static let qwen3Model = "qwen3Model"
         static let idleMinutes = "engineIdleMinutes"
+        static let aiWithSpeech = "aiWithSpeech"
         static let meetingSource = "meetingSource"
         static let meetingPartMinutes = "meetingPartMinutes"
         static let jobEngine = "jobEngine"
@@ -265,6 +266,9 @@ final class AppSettings: ObservableObject {
     @Published var qwen3Model: String { didSet { defaults.set(qwen3Model, forKey: Key.qwen3Model) } }
     /// Free a model's memory after this many minutes without use (0 keeps models loaded).
     @Published var idleMinutes: Int { didSet { defaults.set(idleMinutes, forKey: Key.idleMinutes) } }
+    /// The speech models stay in memory while a language model writes, so live text and file
+    /// transcriptions go on during a summary (the engine's --llm-with-speech). Needs more memory.
+    @Published var aiWithSpeech: Bool { didSet { defaults.set(aiWithSpeech, forKey: Key.aiWithSpeech) } }
     /// Record tab: what a meeting recording captures, and how often a finished part is saved to disk.
     @Published var meetingSource: MeetingSource { didSet { defaults.set(meetingSource.rawValue, forKey: Key.meetingSource) } }
     @Published var meetingPartMinutes: Int { didSet { defaults.set(meetingPartMinutes, forKey: Key.meetingPartMinutes) } }
@@ -399,6 +403,7 @@ final class AppSettings: ObservableObject {
         qwen3Enabled = defaults.bool(forKey: Key.qwen3Enabled)
         qwen3Model = defaults.string(forKey: Key.qwen3Model) ?? SpeechEngine.qwen3.defaultModel
         idleMinutes = max(0, defaults.integer(forKey: Key.idleMinutes))
+        aiWithSpeech = defaults.bool(forKey: Key.aiWithSpeech)
         meetingSource = MeetingSource(rawValue: defaults.string(forKey: Key.meetingSource) ?? "") ?? .both
         meetingPartMinutes = [3, 5].contains(defaults.integer(forKey: Key.meetingPartMinutes)) ? defaults.integer(forKey: Key.meetingPartMinutes) : 5
         // Until chosen, long transcriptions use the dictation engine and language (read from defaults:

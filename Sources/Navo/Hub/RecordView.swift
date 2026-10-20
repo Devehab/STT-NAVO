@@ -6,6 +6,8 @@ struct RecordView: View {
     @EnvironmentObject private var sessions: SessionStore
     @EnvironmentObject private var recorder: MeetingRecorder
     @EnvironmentObject private var settings: AppSettings
+    /// While recording: the other recordings are shown, with the recording in a bar above.
+    @State private var browsing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -25,18 +27,28 @@ struct RecordView: View {
 
             if recorder.phase == .idle {
                 startCard
-                SessionBrowser(
-                    kind: .meeting,
-                    emptyTitle: "No recordings yet",
-                    emptyHint: "Pick what to record above and press Start. The text appears here while the meeting goes on."
-                )
+                browser
+            } else if browsing {
+                RecordingBar { browsing = false }
+                browser
             } else {
-                RecordingPanel()
+                RecordingPanel { browsing = true }
             }
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 22)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: recorder.phase) { _, phase in
+            if phase == .idle { browsing = false }
+        }
+    }
+
+    private var browser: some View {
+        SessionBrowser(
+            kind: .meeting,
+            emptyTitle: "No recordings yet",
+            emptyHint: "Pick what to record above and press Start. The text appears here while the meeting goes on."
+        )
     }
 
     private var startCard: some View {
@@ -130,8 +142,98 @@ struct RecordView: View {
     }
 }
 
+/// Pause or Resume, and Stop.
+private struct RecordingControls: View {
+    @EnvironmentObject private var recorder: MeetingRecorder
+    var size: ControlSize = .large
+
+    var body: some View {
+        switch recorder.phase {
+        case .recording:
+            Button {
+                recorder.pause()
+            } label: {
+                Label("Pause", systemImage: "pause.fill")
+            }
+            .controlSize(size)
+        case .paused:
+            Button {
+                recorder.resume()
+            } label: {
+                Label("Resume", systemImage: "play.fill")
+            }
+            .controlSize(size)
+        default:
+            EmptyView()
+        }
+        Button {
+            recorder.stop()
+        } label: {
+            Label("Stop", systemImage: "stop.fill")
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.red)
+        .controlSize(size)
+        .disabled(recorder.phase == .finishing)
+    }
+}
+
+/// The recording in one line, while you look at the other recordings: it goes on, its live
+/// text too, and Show live text brings the panel back.
+private struct RecordingBar: View {
+    let showLive: () -> Void
+
+    @EnvironmentObject private var sessions: SessionStore
+    @EnvironmentObject private var recorder: MeetingRecorder
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(recorder.phase == .recording ? Color.red : Color.orange)
+                .frame(width: 10, height: 10)
+            Text(recorder.phase == .paused ? "Paused" : recorder.phase == .finishing ? "Saving" : "Recording \(recorder.source.shortTitle)")
+                .fontWeight(.medium)
+            Text(SessionStore.clock(recorder.elapsed))
+                .font(.system(size: 17, weight: .semibold, design: .rounded).monospacedDigit())
+            if let text = lastWords {
+                Text(text)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .help("The latest live text")
+            } else {
+                Spacer()
+            }
+            Button(action: showLive) {
+                Label("Show live text", systemImage: "text.alignleft")
+            }
+            .help("Back to this recording's controls and its text as it comes")
+            RecordingControls(size: .regular)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.red.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.red.opacity(0.18)))
+    }
+
+    /// The end of the live text, so you see it is still being written.
+    private var lastWords: String? {
+        guard recorder.isLive, let id = recorder.sessionID else { return nil }
+        if let draft = sessions.liveDraft[id], !draft.isEmpty {
+            let text = [draft.text, draft.preview?.text ?? ""].filter { !$0.isEmpty }.joined(separator: " ")
+            if !text.isEmpty { return text }
+        }
+        return sessions.session(id)?.chunks.last(where: { !($0.text ?? "").isEmpty })?.text
+    }
+}
+
 /// What shows while recording: the controls, the levels, and the text as it arrives.
 private struct RecordingPanel: View {
+    /// Shows the other recordings, with this one in a bar above.
+    let browse: () -> Void
+
     @EnvironmentObject private var sessions: SessionStore
     @EnvironmentObject private var recorder: MeetingRecorder
     @State private var copied = false
@@ -149,33 +251,12 @@ private struct RecordingPanel: View {
                 Text(SessionStore.clock(recorder.elapsed))
                     .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
                 Spacer()
-                switch recorder.phase {
-                case .recording:
-                    Button {
-                        recorder.pause()
-                    } label: {
-                        Label("Pause", systemImage: "pause.fill")
-                    }
-                    .controlSize(.large)
-                case .paused:
-                    Button {
-                        recorder.resume()
-                    } label: {
-                        Label("Resume", systemImage: "play.fill")
-                    }
-                    .controlSize(.large)
-                default:
-                    EmptyView()
+                Button(action: browse) {
+                    Label("Other recordings", systemImage: "list.bullet.rectangle")
                 }
-                Button {
-                    recorder.stop()
-                } label: {
-                    Label("Stop", systemImage: "stop.fill")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.red)
                 .controlSize(.large)
-                .disabled(recorder.phase == .finishing)
+                .help("Open your other recordings, read them, play them or summarize them, while this one goes on recording and writing its live text")
+                RecordingControls()
             }
 
             HStack(spacing: 22) {

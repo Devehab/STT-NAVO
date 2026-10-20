@@ -3,6 +3,12 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.18.0
+
+- **Read your other recordings while one is recording.** In Notetaker, Other recordings opens the list while the meeting goes on: read, play, copy or summarize an old one. The recording stays in a bar at the top with its time, its latest words, Pause and Stop, and Show live text brings the panel back. Playing an old recording no longer ends up in the one being recorded: Navo leaves its own sound out of the Mac audio it records.
+- **AI and live text at the same time.** Settings > Cleanup and AI > Keep transcribing while AI writes: the speech models stay in memory beside the language model, so a meeting's live text, files in Transcribe and dictation go on while the AI writes a summary (they are transcribed between its words: about 1.2 s for 8 s of speech while Gemma writes, on a 16 GB Mac). Off by default: together they take about 8 to 10 GB, and the setting says what this Mac has. It changes at once, without restarting anything.
+- **If macOS runs out of memory**, and stops Navo's engine to free it, Navo says so in plain words and in the problems log, and the engine starts again on the next request.
+
 ## 0.17.1
 
 - **Select across paragraphs in a transcript.** In Notetaker and Transcribe, live or finished, the transcript is now one text: drag over as many paragraphs as you like, or press ⌘A for all of it, then ⌘C. Select All and Copy are also in the right-click menu, ⌘F finds a word, and what you copy is plain text with its times. A selection stays selected while new live text arrives, and the text stops following the newest line while you select or scroll up to read.

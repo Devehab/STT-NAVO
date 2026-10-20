@@ -47,15 +47,16 @@ import tempfile
 import threading
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from collections import deque
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile  # noqa: E402
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile  # noqa: E402
 from fastapi.responses import PlainTextResponse, StreamingResponse  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
@@ -63,7 +64,7 @@ from . import DEFAULT_PORT, SAMPLE_RATE, __version__, package_version  # noqa: E
 from .asr import ASRService, AudioDecodeError, EngineNotReady, load_audio, normalize_language  # noqa: E402
 from .engines import ALL_LANGUAGES, PROFILES, limit_message, lookup, too_many_enabled  # noqa: E402
 from .llm import LLMService, LLMUnavailable  # noqa: E402
-from .llms import DEFAULT_KEEP_ALIVE, LLM_PROFILES, Completion, LanguageModel, PromptTooLong, lookup_llm  # noqa: E402
+from .llms import DEFAULT_KEEP_ALIVE, GIB, LLM_PROFILES, Completion, LanguageModel, PromptTooLong, lookup_llm  # noqa: E402
 from .options import (  # noqa: E402
     add_model_arguments,
     apply_custom_llms,
@@ -108,6 +109,11 @@ class Engine:
     The same thread keeps the memory rule: a language model (``llms``) is never loaded
     together with a speech engine or the cleanup model. The methods whose names start with
     an underscore run on that thread and free the other kind before they load anything.
+
+    With ``together`` (--llm-with-speech, for Macs with memory to spare) both kinds stay
+    loaded, and while a language model writes, the transcriptions and cleanups that arrive
+    run on the same thread between two of its tokens: live text goes on during a summary,
+    still one model at a time on the GPU.
     """
 
     def __init__(
@@ -120,6 +126,7 @@ class Engine:
         enabled: Optional[list[str]] = None,
         llms: Optional[dict[str, LanguageModel]] = None,
         keep_alive: float = DEFAULT_KEEP_ALIVE,
+        together: bool = False,
     ):
         self.engines: dict[str, ASRService] = asr if isinstance(asr, dict) else {asr.engine_id: asr}
         self.default_engine = default_engine if default_engine in self.engines else next(iter(self.engines))
@@ -132,6 +139,11 @@ class Engine:
         self.port = port
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="navo-model")
         self.started_at = time.time()
+        self.together = together
+        # Work waiting to run between two tokens of the answer being written (together only).
+        self._beside: deque[tuple[Callable, tuple, Future]] = deque()
+        self._beside_lock = threading.Lock()
+        self._writing = False
 
     @property
     def asr(self) -> ASRService:
@@ -160,9 +172,36 @@ class Engine:
     async def run(self, fn, *args):
         return await asyncio.wrap_future(self.worker.submit(fn, *args))
 
+    async def run_beside(self, fn, *args):
+        """Like run. While a language model writes and ``together`` is on, it runs between two of
+        its tokens instead of after the whole answer."""
+        future: Optional[Future] = None
+        if self.together:
+            with self._beside_lock:
+                if self._writing:
+                    future = Future()
+                    self._beside.append((fn, args, future))
+        if future is not None:
+            return await asyncio.wrap_future(future)  # outside the lock: the model thread takes it
+        return await self.run(fn, *args)
+
     async def run_speech(self, service: ASRService, fn, *args):
         """Runs a transcription, loading the engine first if a language model had taken its place."""
-        return await self.run(self._speech_job, service, fn, *args)
+        return await self.run_beside(self._speech_job, service, fn, *args)
+
+    def _between(self) -> None:
+        """On the model thread, between two tokens: runs what waits beside the answer."""
+        while True:
+            with self._beside_lock:
+                if not self._beside:
+                    return
+                fn, args, future = self._beside.popleft()
+            if not future.set_running_or_notify_cancel():
+                continue
+            try:
+                future.set_result(fn(*args))
+            except BaseException as exc:  # the caller hears it; the answer goes on
+                future.set_exception(exc)
 
     # On the model thread: one kind of model in memory at a time.
 
@@ -172,16 +211,18 @@ class Engine:
                 model.unload()
 
     def _free_for_llm(self, keep: LanguageModel) -> None:
-        for service in self.engines.values():
-            if service.backend is not None:
-                service.unload()  # asleep: the next transcription loads it again
-        self.llm.unload()
+        if not self.together:
+            for service in self.engines.values():
+                if service.backend is not None:
+                    service.unload()  # asleep: the next transcription loads it again
+            self.llm.unload()
         for model in self.llms.values():
             if model is not keep and model.loaded:
                 model.unload()
 
     def _load_speech(self, service: ASRService) -> None:
-        self._free_llms()
+        if not self.together:
+            self._free_llms()
         service.load()
 
     def _speech_job(self, service: ASRService, fn, *args):
@@ -190,11 +231,13 @@ class Engine:
         return fn(*args)
 
     def _preload_cleanup(self) -> None:
-        self._free_llms()
+        if not self.together:
+            self._free_llms()
         self.llm.preload()
 
     def _cleanup_chat(self, *args):
-        self._free_llms()
+        if not self.together:
+            self._free_llms()
         return self.llm.chat(*args)
 
     def _llm_load(self, model: LanguageModel) -> None:
@@ -202,7 +245,18 @@ class Engine:
             if not model.downloaded:
                 model.load()  # raises: not downloaded. Nothing else leaves memory for it
             self._free_for_llm(model)
+            # Beside the speech models: MLX may use their room too before it holds back.
+            model.memory_extra = self._speech_bytes() if self.together else 0
         model.load()
+
+    def _speech_bytes(self) -> int:
+        """Memory the speech side may take: each engine that is on (its size, or about 3 GB
+        before it ever loaded), the cleanup model, and a margin."""
+        total = GIB
+        for service in self.engines.values():
+            if service.enabled:
+                total += service.model_bytes or 3 * GIB
+        return total
 
     def _stay(self, keep_alive: Optional[float]) -> float:
         """Seconds a model stays for a request that is on its way: never less than half a minute."""
@@ -222,9 +276,19 @@ class Engine:
 
     def _llm_generate(self, model: LanguageModel, keep_alive: Optional[float], messages: list[dict], options: dict) -> Completion:
         self._llm_load(model)  # again: a speech request may have run in between
+        if not self.together:
+            try:
+                return model.generate(messages, **options)
+            finally:
+                self._llm_rest(model, self.keep_alive if keep_alive is None else keep_alive)
+        with self._beside_lock:
+            self._writing = True
         try:
-            return model.generate(messages, **options)
+            return model.generate(messages, between=self._between, **options)
         finally:
+            with self._beside_lock:
+                self._writing = False
+            self._between()  # what arrived as the answer ended
             self._llm_rest(model, self.keep_alive if keep_alive is None else keep_alive)
 
     def _llm_rest(self, model: LanguageModel, keep_alive: float) -> None:
@@ -339,6 +403,7 @@ def create_app(engine: Engine) -> FastAPI:
             "last_processing_ms": asr.last_processing_ms,
             "llm": engine.llm.info(),  # the small cleanup model
             "llms": llm_list(),  # the language models that summarize and rewrite
+            "llm_with_speech": engine.together,  # both kinds of model in memory, live text during a summary
             "mlx_lm_version": package_version("mlx-lm"),  # Gemma 4 needs 0.32 or newer
         }
 
@@ -396,6 +461,17 @@ def create_app(engine: Engine) -> FastAPI:
         service = service_for(engine_id)
         engine.default_engine = service.engine_id
         return {"default_engine": engine.default_engine, "engines": engine_list()}
+
+    @app.post("/v1/llms/together")
+    async def set_together(request: Request) -> dict:
+        """Turns on or off keeping the speech models beside a language model (--llm-with-speech)."""
+        try:
+            on = bool((await request.json()).get("on"))
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=400, detail='Send JSON like {"on": true}')
+        engine.together = on
+        log.info("Language models %s the speech models", "stay beside" if on else "take turns with")
+        return {"llm_with_speech": engine.together}
 
     @app.post("/v1/llms/unload")
     async def unload_llms() -> dict:
@@ -606,7 +682,7 @@ def create_app(engine: Engine) -> FastAPI:
         temperature = 0.2 if request.temperature is None else request.temperature
         max_tokens = request.max_tokens or request.max_completion_tokens or 1024
         try:
-            text = await engine.run(engine._cleanup_chat, messages, request.model, temperature, max_tokens)
+            text = await engine.run_beside(engine._cleanup_chat, messages, request.model, temperature, max_tokens)
         except LLMUnavailable as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except Exception as exc:
@@ -817,6 +893,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         enabled=args.engines,
         llms=build_llms(args),
         keep_alive=args.llm_keep_alive,
+        together=args.llm_with_speech,
     )
     engine.start_loading(preload, preload_llm=not args.no_preload_llm)
 

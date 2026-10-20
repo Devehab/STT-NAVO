@@ -237,10 +237,15 @@ def mlx_generate(model: Any, tokenizer: Any, prompt: list[int], options: dict) -
     processors = make_logits_processors(repetition_penalty=float(penalty)) if penalty and float(penalty) != 1.0 else None
     cancelled = options.get("cancelled")
 
+    between = options.get("between")
+
     def reading(done: int, total: int) -> None:
-        # Reading a long prompt takes a while: stop here too when the client has left.
+        # Reading a long prompt takes a while: stop here too when the client has left, and let
+        # transcriptions waiting beside it run.
         if cancelled is not None and cancelled():
             raise _Cancelled()
+        if between is not None:
+            between()
 
     for response in stream_generate(
         model,
@@ -308,6 +313,8 @@ class LanguageModel:
         self._model: Any = None
         self._tokenizer: Any = None
         self._previous_limit: Optional[int] = None
+        # Memory on top of the limit while speech models stay loaded beside this one (set by the engine).
+        self.memory_extra = 0
         self.status = "asleep"
         self.error: Optional[str] = None
         self.load_seconds: Optional[float] = None
@@ -395,7 +402,7 @@ class LanguageModel:
         try:
             if mx is not None:
                 # A ceiling for MLX's own allocator, and no large pool of spare buffers.
-                self._previous_limit = mx.set_memory_limit(self.memory_limit)
+                self._previous_limit = mx.set_memory_limit(self.memory_limit + max(0, int(self.memory_extra)))
                 mx.reset_peak_memory()
             if self._loader is not None:
                 self._model, self._tokenizer = self._loader(str(path))
@@ -539,8 +546,10 @@ class LanguageModel:
         stop: Optional[list[str]] = None,
         on_text: Optional[Callable[[str], None]] = None,
         cancelled: Optional[Callable[[], bool]] = None,
+        between: Optional[Callable[[], None]] = None,
     ) -> Completion:
-        """Writes the answer. ``on_text`` hears each new piece; ``cancelled`` stops it early."""
+        """Writes the answer. ``on_text`` hears each new piece; ``cancelled`` stops it early;
+        ``between`` runs after each piece (the engine's transcriptions waiting beside it)."""
         prompt = self.prompt_ids(messages)
         budget = self.output_budget(len(prompt), max_tokens)
         sizes = self._sizes(messages)
@@ -551,6 +560,7 @@ class LanguageModel:
             "max_tokens": budget,
             "repetition_penalty": repetition_penalty,
             "cancelled": cancelled,
+            "between": between,
             "tally": {},
         }
         stops = [s for s in (stop or []) if s]
@@ -582,6 +592,8 @@ class LanguageModel:
                 if cancelled is not None and cancelled():
                     reason = "cancelled"
                     break
+                if between is not None:
+                    between()
         except _Cancelled:
             reason = "cancelled"
         finally:

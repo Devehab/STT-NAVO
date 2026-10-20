@@ -470,3 +470,82 @@ def test_a_generator_that_joins_tokens_gives_the_true_count():
     model.load()
     done = model.generate([{"role": "user", "content": "x"}])
     assert closed == [True] and done.completion_tokens == 5 and done.finish_reason == "length"
+
+
+def make_together_engine(monkeypatch, generator=fake_words):
+    from navo_engine import llm as llm_module
+
+    monkeypatch.setattr(llm_module, "resolve_model_dir", lambda m, allow_download=False: _MODEL_DIR)
+    client, engine = make_engine(generator=generator)
+    engine.together = True
+    return client, engine
+
+
+def test_together_keeps_the_speech_models_beside_a_language_model(monkeypatch):
+    client, engine = make_together_engine(monkeypatch)
+    assert transcribe(client).status_code == 200
+    engine.worker.submit(engine._preload_cleanup).result()
+    assert chat(client).status_code == 200
+    assert loaded(engine) == ["cleanup", "cohere", "gemma"]  # nothing left for the language model
+    assert transcribe(client, "whisper").status_code == 200
+    assert loaded(engine) == ["cleanup", "cohere", "gemma", "whisper"]
+    assert engine.llms["gemma"].memory_extra > 0
+    # Still one language model at a time.
+    assert chat(client, "/llama/v1/chat/completions").status_code == 200
+    assert "gemma" not in loaded(engine) and "llama" in loaded(engine)
+
+
+def test_together_transcribes_between_the_words_of_an_answer(monkeypatch):
+    import threading
+
+    def slow(model, tokenizer, prompt, options):
+        for index in range(40):
+            time.sleep(0.05)
+            yield f"w{index} ", ("stop" if index == 39 else None)
+
+    client, engine = make_together_engine(monkeypatch, generator=slow)
+    assert transcribe(client).status_code == 200  # cohere in memory
+    done = {}
+
+    def answer():
+        done["chat"] = (chat(client).status_code, time.monotonic())
+
+    thread = threading.Thread(target=answer)
+    thread.start()
+    time.sleep(0.6)  # the answer is being written
+    assert engine._writing
+    r = transcribe(client)
+    done["speech"] = (r.status_code, time.monotonic())
+    thread.join()
+    assert done["speech"][0] == 200 and done["chat"][0] == 200
+    assert done["speech"][1] < done["chat"][1] - 0.3  # it did not wait for the whole answer
+    assert loaded(engine) == ["cohere", "gemma"]
+
+
+def test_without_together_a_transcription_waits_for_the_answer(monkeypatch):
+    import threading
+
+    def slow(model, tokenizer, prompt, options):
+        for index in range(20):
+            time.sleep(0.05)
+            yield f"w{index} ", ("stop" if index == 19 else None)
+
+    client, engine = make_engine(generator=slow)
+    done = {}
+    thread = threading.Thread(target=lambda: done.setdefault("chat", (chat(client).status_code, time.monotonic())))
+    thread.start()
+    time.sleep(0.4)
+    r = transcribe(client)
+    finished = time.monotonic()
+    thread.join()
+    assert r.status_code == 200 and finished >= done["chat"][1]
+    assert loaded(engine) == ["cohere"]
+
+
+def test_together_can_be_switched_while_running():
+    client, engine = make_engine()
+    assert client.get("/health").json()["llm_with_speech"] is False
+    assert client.post("/v1/llms/together", json={"on": True}).json() == {"llm_with_speech": True}
+    assert engine.together and client.get("/health").json()["llm_with_speech"] is True
+    assert client.post("/v1/llms/together", json={"on": False}).json() == {"llm_with_speech": False}
+    assert client.post("/v1/llms/together", content=b"nope").status_code == 400

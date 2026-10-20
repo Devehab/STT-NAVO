@@ -64,6 +64,12 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--backend", choices=["auto", "mlx", "transformers"], default="auto", help="Cohere backend")
     parser.add_argument("--allow-download", action="store_true", help="Download a model if it is missing")
     parser.add_argument("--no-preload-llm", action="store_true", help="Load the cleanup LLM on first use")
+    parser.add_argument(
+        "--llm-with-speech",
+        action="store_true",
+        help="Keep the speech models in memory while a language model writes, and transcribe between its words "
+        "(needs more memory; by default one kind of model is in memory at a time)",
+    )
     parser.add_argument("--parent-pid", type=int, default=0)
 
 

@@ -217,7 +217,8 @@ struct SessionBrowser: View {
         .browserCard()
         .onAppear {
             if !showFocused(), selection == nil || !items.contains(where: { $0.id == selection }) {
-                selection = items.first?.id
+                // The one being recorded has its own panel: open the latest finished one.
+                selection = (items.first { $0.status != .recording } ?? items.first)?.id
             }
         }
         .onChange(of: router.focusedSession) { _, _ in
@@ -521,7 +522,7 @@ private struct SessionDetail: View {
         VStack(alignment: .leading, spacing: 12) {
             header
             if session.status == .recording {
-                Label("Recording now. Its text shows in the recording panel above.", systemImage: "record.circle")
+                Label("Recording now. Show live text above to read its text as it comes.", systemImage: "record.circle")
                     .foregroundStyle(.red)
                 Spacer()
             } else {
