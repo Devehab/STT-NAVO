@@ -111,6 +111,7 @@ final class HubWindowController: NSObject, NSWindowDelegate {
     private let clipboard: ClipboardStore
     private let quickPaste: QuickPasteController
     private let aiWriter: AIWriter
+    private let metrics: MetricsStore
 
     init(
         settings: AppSettings,
@@ -120,7 +121,8 @@ final class HubWindowController: NSObject, NSWindowDelegate {
         sessions: SessionStore,
         clipboard: ClipboardStore,
         quickPaste: QuickPasteController,
-        aiWriter: AIWriter
+        aiWriter: AIWriter,
+        metrics: MetricsStore
     ) {
         self.settings = settings
         self.store = store
@@ -130,6 +132,7 @@ final class HubWindowController: NSObject, NSWindowDelegate {
         self.clipboard = clipboard
         self.quickPaste = quickPaste
         self.aiWriter = aiWriter
+        self.metrics = metrics
         super.init()
     }
 
@@ -171,6 +174,7 @@ final class HubWindowController: NSObject, NSWindowDelegate {
             .environmentObject(clipboard)
             .environmentObject(quickPaste)
             .environmentObject(aiWriter)
+            .environmentObject(metrics)
             .environment(\.hubControllers, HubControllers(dictation: dictation, engine: engine))
         // HubView fixes its own minimum and ideal size, so no page can make the window grow or
         // stop it from shrinking. The standard sizing stays on: the sidebar and lists need it.

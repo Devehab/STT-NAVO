@@ -22,11 +22,13 @@ final class AIWriter: ObservableObject {
     private let settings: AppSettings
     /// The local engine the models run in (the AI panel follows its downloads).
     let engine: LocalEngineManager
+    private let metrics: MetricsStore?
     private var cache: [String: AIAnswer] = [:]
 
-    init(settings: AppSettings, engine: LocalEngineManager) {
+    init(settings: AppSettings, engine: LocalEngineManager, metrics: MetricsStore? = nil) {
         self.settings = settings
         self.engine = engine
+        self.metrics = metrics
         LegacyGemini.erase()
     }
 
@@ -66,6 +68,7 @@ final class AIWriter: ObservableObject {
             temperature: 0.2,
             maxTokens: 40
         )
+        record(answer, model: model, kind: .test, started: started, detail: "the test sentence")
         let result = TestResult(reply: answer.text, seconds: Date().timeIntervalSince(started), stats: stats(answer))
         engine.unloadWritingModels()
         return result
@@ -94,6 +97,7 @@ final class AIWriter: ObservableObject {
         }
 
         onStatus?("Getting \(model.shortName) ready. The speech models step out of memory while it writes.")
+        let started = Date()
         var limit = action.partLimit
         var written: WritingClient.Answer
         var partCount = 1
@@ -109,6 +113,8 @@ final class AIWriter: ObservableObject {
         if partCount > 1 {
             notes.append("A long text: \(model.shortName) read it in \(partCount) parts.")
         }
+        record(written, model: model, kind: .writing, started: started,
+               detail: action.title + (partCount > 1 ? ", read in \(partCount) parts" : ""))
         var result = written.text
         if written.finishReason == "length" {
             result += "\n\n(The answer was cut off here: it reached its length limit.)"
@@ -225,12 +231,34 @@ final class AIWriter: ObservableObject {
         throw WritingClient.Failure(message: "The local engine did not start. Open Settings > Speech engines to see why.")
     }
 
-    /// Speed, and the memory the models process used: the larger of what MLX reports as its
-    /// peak for the answer and what macOS counts for the process now, with the model loaded.
+    /// Keeps the figures of an answer for the Performance page.
+    private func record(_ answer: WritingClient.Answer, model: WritingModel, kind: PerfRecord.Kind, started: Date, detail: String) {
+        var record = PerfRecord(kind: kind, model: model.rawValue, modelName: model.title)
+        record.totalMs = Int(Date().timeIntervalSince(started) * 1000)
+        record.firstTokenMs = answer.firstTokenMs
+        record.tokensPerSecond = answer.decodeTokensPerSecond ?? answer.tokensPerSecond
+        record.promptTokens = answer.promptTokens > 0 ? answer.promptTokens : nil
+        record.outputTokens = answer.completionTokens > 0 ? answer.completionTokens : nil
+        record.loadMs = answer.loadMs
+        record.detail = detail
+        metrics?.record(record)
+    }
+
+    /// Time to the first word, writing speed, the whole time, and the memory the models process
+    /// used: the larger of what MLX reports as its peak for the answer and what macOS counts for
+    /// the process now, with the model loaded.
     private func stats(_ answer: WritingClient.Answer) -> String? {
         var parts: [String] = []
-        if let speed = answer.tokensPerSecond, speed > 0 {
-            parts.append("\(Int(speed.rounded())) tokens a second")
+        if let first = answer.firstTokenMs {
+            var text = "first word after \(Perf.ms(first))"
+            if let load = answer.loadMs, load > 0 { text += " (loading \(Perf.ms(load)))" }
+            parts.append(text)
+        }
+        if let speed = answer.decodeTokensPerSecond ?? answer.tokensPerSecond, speed > 0 {
+            parts.append("then \(Int(speed.rounded())) tokens a second")
+        }
+        if let total = answer.totalMs {
+            parts.append("\(Perf.ms(total)) in all")
         }
         let memory = max(UInt64(max(0, answer.peakMemoryBytes ?? 0)), engine.modelsMemory ?? 0)
         if memory > 0 {
@@ -248,5 +276,9 @@ private extension WritingClient.Answer {
         completionTokens += other.completionTokens
         tokensPerSecond = other.tokensPerSecond ?? tokensPerSecond
         peakMemoryBytes = max(peakMemoryBytes ?? 0, other.peakMemoryBytes ?? 0)
+        firstTokenMs = firstTokenMs ?? other.firstTokenMs
+        decodeTokensPerSecond = other.decodeTokensPerSecond ?? decodeTokensPerSecond
+        loadMs = max(loadMs ?? 0, other.loadMs ?? 0)
+        totalMs = (totalMs ?? 0) + (other.totalMs ?? 0)
     }
 }

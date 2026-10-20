@@ -72,6 +72,11 @@ final class FlowBarController {
                 self?.refresh()
             }
             .store(in: &cancellables)
+        settings.$language
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in DispatchQueue.main.async { self?.refresh() } }
+            .store(in: &cancellables)
         settings.$flowBarAlwaysVisible
             .dropFirst()
             .receive(on: DispatchQueue.main)
@@ -112,7 +117,8 @@ final class FlowBarController {
         case .recording:
             return .recording
         case .transcribing:
-            return .processing("Transcribing…")
+            // The language shows, so a wrong one is seen in time: switching it now redoes the text.
+            return .processing("Transcribing, \(settings.language.name)…")
         case .polishing:
             return .processing("Polishing…")
         case .done(let message):

@@ -53,6 +53,9 @@ final class SessionStore: ObservableObject {
     private let db: Database?
     private let engine: LocalEngineManager
     private let settings: AppSettings
+    private let metrics: MetricsStore?
+    /// When each running transcription started (for the Performance page).
+    private var jobStarted: [String: Date] = [:]
     private var tasks: [String: Task<Void, Never>] = [:]
     /// Live transcriptions: the recorder hands pieces in here while the meeting records.
     private var liveFeeds: [String: AsyncStream<LivePiece>.Continuation] = [:]
@@ -62,10 +65,11 @@ final class SessionStore: ObservableObject {
     private var activeJob: String?
     private var queue: [QueuedJob] = []
 
-    init(db: Database?, engine: LocalEngineManager, settings: AppSettings) {
+    init(db: Database?, engine: LocalEngineManager, settings: AppSettings, metrics: MetricsStore? = nil) {
         self.db = db
         self.engine = engine
         self.settings = settings
+        self.metrics = metrics
         recorder.onFinished = { [weak self] finished in
             self?.recordingFinished(finished)
         }
@@ -194,6 +198,8 @@ final class SessionStore: ObservableObject {
         let baseURL = engine.baseURL(for: speech)
         let store = self
         let mailbox = LiveMailbox()
+        let account = TimingBox()
+        jobStarted[id] = Date()
         Task.detached(priority: .userInitiated) {
             for await piece in stream {
                 await mailbox.push(piece)
@@ -223,6 +229,7 @@ final class SessionStore: ObservableObject {
                     if Task.isCancelled { break }
                     chunk.text = result.text
                     chunk.error = result.error
+                    await account.add(result.timing)
                 }
                 if let url = piece.url {
                     try? FileManager.default.removeItem(at: url)
@@ -234,8 +241,9 @@ final class SessionStore: ObservableObject {
             }
             let cancelled = Task.isCancelled
             try? FileManager.default.removeItem(at: SessionStore.liveFolder(id))
+            let timing = await account.total
             await MainActor.run {
-                store.jobFinished(id, outcome: cancelled ? .cancelled : .finished)
+                store.jobFinished(id, outcome: cancelled ? .cancelled : .finished, timing: timing, live: true)
             }
         }
     }
@@ -646,6 +654,8 @@ final class SessionStore: ObservableObject {
 
         // The store lives as long as the app, so the job can hold it.
         let store = self
+        let account = TimingBox()
+        jobStarted[id] = Date()
         tasks[id] = Task.detached(priority: .userInitiated) {
             let outcome = await SessionStore.run(
                 url: url,
@@ -654,14 +664,16 @@ final class SessionStore: ObservableObject {
                 pieceSeconds: pieceSeconds,
                 retry: retry,
                 resumeAt: resumeAt,
-                firstIndex: firstIndex
+                firstIndex: firstIndex,
+                account: account
             ) { chunk in
                 await MainActor.run {
                     store.partFinished(id, chunk: chunk)
                 }
             }
+            let timing = await account.total
             await MainActor.run {
-                store.jobFinished(id, outcome: outcome)
+                store.jobFinished(id, outcome: outcome, timing: timing)
             }
         }
     }
@@ -685,10 +697,14 @@ final class SessionStore: ObservableObject {
         }
     }
 
-    private func jobFinished(_ id: String, outcome: Outcome) {
+    private func jobFinished(_ id: String, outcome: Outcome, timing: PieceTiming? = nil, live: Bool = false) {
         tasks[id] = nil
         jobs[id] = nil
         endLiveDraft(id)
+        let started = jobStarted.removeValue(forKey: id)
+        if let timing, timing.audioSeconds > 0, let session = session(id) {
+            recordJob(session, timing: timing, started: started, live: live)
+        }
         let wasActive = activeJob == id
         if wasActive {
             activeJob = nil
@@ -727,6 +743,21 @@ final class SessionStore: ObservableObject {
         case failed(String)
     }
 
+    /// The speed of a transcription, for the Performance page.
+    private func recordJob(_ session: Session, timing: PieceTiming, started: Date?, live: Bool) {
+        let speech = SpeechEngine.from(historyName: session.engine ?? settings.jobEngineInUse.historyName)
+        var record = PerfRecord(kind: session.kind == .meeting ? .meeting : .file, model: speech.rawValue, modelName: speech.title)
+        record.refID = session.id
+        record.audioSeconds = timing.audioSeconds
+        // A live meeting runs as long as the meeting: its own length says nothing about speed.
+        record.totalMs = live ? nil : started.map { Int(Date().timeIntervalSince($0) * 1000) }
+        record.transcribeMs = timing.wallMs
+        record.computeMs = timing.computeMs
+        record.loadMs = timing.loadMs
+        record.detail = "\(timing.pieces) \(timing.pieces == 1 ? "part" : "parts")" + (live ? ", live, paragraphs heard again as a whole" : "")
+        metrics?.record(record)
+    }
+
     /// Redoes the pieces in `retry`, then cuts the audio after `resumeAt` into pieces and sends
     /// each to the engine, reporting every piece as it completes.
     nonisolated private static func run(
@@ -737,13 +768,14 @@ final class SessionStore: ObservableObject {
         retry: [SessionChunk],
         resumeAt: TimeInterval,
         firstIndex: Int,
+        account: TimingBox,
         report: @escaping (SessionChunk) async -> Void
     ) async -> Outcome {
         guard AudioStream.duration(of: url) != nil else {
             guard engineOnlyExtensions.contains(url.pathExtension.lowercased()) else {
                 return .failed("Navo can't read this audio file.")
             }
-            return await runWhole(url: url, baseURL: baseURL, language: language, report: report)
+            return await runWhole(url: url, baseURL: baseURL, language: language, account: account, report: report)
         }
         let client = TranscriptionClient(baseURL: baseURL)
         let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("navo-part-\(UUID().uuidString).wav")
@@ -758,7 +790,7 @@ final class SessionStore: ObservableObject {
             } catch {
                 return .failed(error.localizedDescription)
             }
-            guard let chunk = await transcribePiece(samples, index: old.index, start: old.start, client: client, language: language, scratch: scratch) else {
+            guard let chunk = await transcribePiece(samples, index: old.index, start: old.start, client: client, language: language, scratch: scratch, account: account) else {
                 return .cancelled
             }
             await report(chunk)
@@ -782,7 +814,7 @@ final class SessionStore: ObservableObject {
             }
             guard let piece = next else { break }
             sawAudio = true
-            guard let chunk = await transcribePiece(piece.samples, index: piece.index, start: piece.start, client: client, language: language, scratch: scratch) else {
+            guard let chunk = await transcribePiece(piece.samples, index: piece.index, start: piece.start, client: client, language: language, scratch: scratch, account: account) else {
                 return .cancelled
             }
             await report(chunk)
@@ -798,7 +830,8 @@ final class SessionStore: ObservableObject {
         start: TimeInterval,
         client: TranscriptionClient,
         language: String,
-        scratch: URL
+        scratch: URL,
+        account: TimingBox
     ) async -> SessionChunk? {
         let end = start + Double(samples.count) / Double(SpeechAudio.sampleRate)
         var chunk = SessionChunk(index: index, start: start, end: end, text: nil, error: nil)
@@ -817,17 +850,18 @@ final class SessionStore: ObservableObject {
         if Task.isCancelled { return nil }
         chunk.text = result.text
         chunk.error = result.error
+        await account.add(result.timing)
         return chunk
     }
 
     /// Sends one audio file; one retry covers a model that is still waking up or a worker that restarted.
-    nonisolated private static func send(_ file: URL, client: TranscriptionClient, language: String) async -> (text: String?, error: String?) {
+    nonisolated private static func send(_ file: URL, client: TranscriptionClient, language: String) async -> (text: String?, error: String?, timing: PieceTiming) {
         var failure: String?
         for attempt in 0..<2 {
             if Task.isCancelled { break }
             do {
                 let result = try await client.transcribe(fileURL: file, language: language)
-                return (result.text, nil)
+                return (result.text, nil, PieceTiming(result))
             } catch {
                 failure = error.localizedDescription
                 if attempt == 0 && !Task.isCancelled {
@@ -835,7 +869,7 @@ final class SessionStore: ObservableObject {
                 }
             }
         }
-        return (nil, failure ?? "Cancelled")
+        return (nil, failure ?? "Cancelled", PieceTiming())
     }
 
     /// A file macOS cannot decode: the engine reads it and splits it itself, in one request.
@@ -843,6 +877,7 @@ final class SessionStore: ObservableObject {
         url: URL,
         baseURL: URL,
         language: String,
+        account: TimingBox,
         report: @escaping (SessionChunk) async -> Void
     ) async -> Outcome {
         var chunk = SessionChunk(index: 0, start: 0, end: 0, text: nil, error: nil)
@@ -853,6 +888,7 @@ final class SessionStore: ObservableObject {
                 chunk.text = result.text
                 chunk.end = result.duration ?? 0
                 chunk.error = nil
+                await account.add(PieceTiming(result))
                 break
             } catch {
                 if Task.isCancelled { return .cancelled }
@@ -1023,5 +1059,43 @@ private actor LiveMailbox {
         if let url = piece?.url {
             try? FileManager.default.removeItem(at: url)
         }
+    }
+}
+
+/// Where a transcription's time went, piece by piece.
+struct PieceTiming: Sendable {
+    var audioSeconds: Double = 0
+    var wallMs = 0
+    /// The engine's own time; nil once a piece came back without it.
+    var computeMs: Int? = 0
+    var loadMs = 0
+    var pieces = 0
+
+    init() {}
+
+    init(_ result: TranscriptionClient.Result) {
+        audioSeconds = result.duration ?? 0
+        wallMs = result.wallMs ?? 0
+        computeMs = result.computeMs
+        loadMs = result.loadMs ?? 0
+        pieces = 1
+    }
+
+    mutating func add(_ other: PieceTiming) {
+        audioSeconds += other.audioSeconds
+        wallMs += other.wallMs
+        computeMs = computeMs.flatMap { mine in other.computeMs.map { mine + $0 } }
+        loadMs += other.loadMs
+        pieces += other.pieces
+    }
+}
+
+/// Adds up the timing of the pieces of one transcription job (they arrive from its task).
+actor TimingBox {
+    private(set) var total = PieceTiming()
+
+    func add(_ timing: PieceTiming) {
+        guard timing.pieces > 0 else { return }
+        total.add(timing)
     }
 }

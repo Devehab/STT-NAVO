@@ -11,6 +11,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     case engines
     case writing
     case notetaker
+    case performance
     case flowBar
     case clipboard
     case privacy
@@ -25,6 +26,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .engines: return "Speech engines"
         case .writing: return "Cleanup and AI"
         case .notetaker: return "Notetaker and Transcribe"
+        case .performance: return "Performance"
         case .flowBar: return "Flow Bar"
         case .clipboard: return "Clipboard"
         case .privacy: return "Privacy"
@@ -39,6 +41,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .engines: return "waveform"
         case .writing: return "sparkles"
         case .notetaker: return "record.circle"
+        case .performance: return "gauge.with.dots.needle.67percent"
         case .flowBar: return "capsule.bottomhalf.filled"
         case .clipboard: return "doc.on.clipboard.fill"
         case .privacy: return "hand.raised.fill"
@@ -53,6 +56,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .engines: return .blue
         case .writing: return .purple
         case .notetaker: return .orange
+        case .performance: return .pink
         case .flowBar: return .teal
         case .clipboard: return .green
         case .privacy: return .indigo
@@ -68,6 +72,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .engines: return "The speech-to-text models on this Mac: download them, pick the one for dictation, and how much memory they use."
         case .writing: return "Tidying up what you said, and the language models that summarize and rewrite."
         case .notetaker: return "Meetings turned into text while they go on, and audio files turned into text."
+        case .performance: return "How fast each model is on this Mac, measured on your own dictations, transcriptions and AI answers."
         case .flowBar: return "The small bar at the edge of the screen that shows you are dictating."
         case .clipboard: return "Everything you copy, kept on this Mac so you can paste it again later."
         case .privacy: return "Keep Navo out of screen sharing, and see for yourself that everything stays on this Mac."
@@ -291,6 +296,8 @@ struct SettingsView: View {
         case .notetaker:
             notetakerSection
             transcribeSection
+        case .performance:
+            PerformanceSections(compareOnFile: { pickAudio = true })
         case .flowBar:
             flowBarSection
         case .clipboard:

@@ -230,6 +230,108 @@ final class Database: @unchecked Sendable {
             PRAGMA user_version = 3;
             """)
         }
+        if version < 4 {
+            // How long each dictation, AI answer and transcription took. Numbers only, no text.
+            try exec("""
+            CREATE TABLE IF NOT EXISTS metrics (
+                id TEXT PRIMARY KEY,
+                created_at REAL NOT NULL,
+                kind TEXT NOT NULL,
+                ref_id TEXT,
+                model TEXT NOT NULL,
+                model_name TEXT NOT NULL DEFAULT '',
+                audio_seconds REAL,
+                total_ms INTEGER,
+                transcribe_ms INTEGER,
+                compute_ms INTEGER,
+                cleanup_ms INTEGER,
+                load_ms INTEGER,
+                first_token_ms INTEGER,
+                prompt_tokens INTEGER,
+                output_tokens INTEGER,
+                tokens_per_second REAL,
+                live INTEGER NOT NULL DEFAULT 0,
+                detail TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_metrics_created ON metrics(created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_metrics_ref ON metrics(ref_id);
+            PRAGMA user_version = 4;
+            """)
+        }
+    }
+
+    // MARK: Metrics
+
+    func saveMetric(_ record: PerfRecord) throws {
+        try run(
+            """
+            INSERT OR REPLACE INTO metrics (id, created_at, kind, ref_id, model, model_name, audio_seconds, total_ms,
+                transcribe_ms, compute_ms, cleanup_ms, load_ms, first_token_ms, prompt_tokens, output_tokens,
+                tokens_per_second, live, detail)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            [
+                .text(record.id), .double(record.createdAt.timeIntervalSince1970), .text(record.kind.rawValue),
+                .text(record.refID), .text(record.model), .text(record.modelName), Self.optional(record.audioSeconds),
+                .int(record.totalMs), .int(record.transcribeMs), .int(record.computeMs), .int(record.cleanupMs),
+                .int(record.loadMs), .int(record.firstTokenMs), .int(record.promptTokens), .int(record.outputTokens),
+                Self.optional(record.tokensPerSecond), .int(record.live ? 1 : 0), .text(record.detail),
+            ]
+        )
+    }
+
+    func metrics(limit: Int) throws -> [PerfRecord] {
+        try query(
+            """
+            SELECT id, created_at, kind, ref_id, model, model_name, audio_seconds, total_ms, transcribe_ms, compute_ms,
+                cleanup_ms, load_ms, first_token_ms, prompt_tokens, output_tokens, tokens_per_second, live, detail
+            FROM metrics ORDER BY created_at DESC LIMIT ?
+            """,
+            [.int(limit)]
+        ) { stmt in
+            func int(_ column: Int32) -> Int? {
+                sqlite3_column_type(stmt, column) == SQLITE_NULL ? nil : Int(sqlite3_column_int64(stmt, column))
+            }
+            func double(_ column: Int32) -> Double? {
+                sqlite3_column_type(stmt, column) == SQLITE_NULL ? nil : sqlite3_column_double(stmt, column)
+            }
+            return PerfRecord(
+                id: Self.text(stmt, 0) ?? UUID().uuidString,
+                createdAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 1)),
+                kind: PerfRecord.Kind(rawValue: Self.text(stmt, 2) ?? "") ?? .dictation,
+                refID: Self.text(stmt, 3),
+                model: Self.text(stmt, 4) ?? "",
+                modelName: Self.text(stmt, 5) ?? "",
+                audioSeconds: double(6),
+                totalMs: int(7),
+                transcribeMs: int(8),
+                computeMs: int(9),
+                cleanupMs: int(10),
+                loadMs: int(11),
+                firstTokenMs: int(12),
+                promptTokens: int(13),
+                outputTokens: int(14),
+                tokensPerSecond: double(15),
+                live: int(16) == 1,
+                detail: Self.text(stmt, 17)
+            )
+        }
+    }
+
+    /// Old measurements, and those of dictations and recordings that were deleted.
+    func pruneMetrics(before: Date) throws {
+        try run("DELETE FROM metrics WHERE created_at < ?", [.double(before.timeIntervalSince1970)])
+        try run("DELETE FROM metrics WHERE kind = 'dictation' AND ref_id IS NOT NULL AND ref_id NOT IN (SELECT id FROM dictations)")
+        try run("DELETE FROM metrics WHERE kind IN ('meeting', 'file') AND ref_id IS NOT NULL AND ref_id NOT IN (SELECT id FROM sessions)")
+    }
+
+    func deleteAllMetrics() throws {
+        try run("DELETE FROM metrics")
+    }
+
+    private static func optional(_ value: Double?) -> Value {
+        guard let value else { return .int(nil) }
+        return .double(value)
     }
 
     // MARK: Dictations

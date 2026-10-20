@@ -3,6 +3,11 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.16.0
+
+- **See how fast each model is.** A new Performance page in Settings, from your own use: for speech to text, the speed in "× real time" (seconds of audio per second of work, so short and long recordings compare fairly), the wait after you let go of the key, the cleanup time and the time to wake a model up; for AI writing, the time to the first word, the writing speed in tokens a second and the whole time. With what each number means, and the recent runs one by one. Each dictation in History shows its speed, and hovering shows where the time went. Only numbers are kept, never text.
+- **Change the language after you stopped talking.** Switch the language (shortcut, Flow Bar or menu bar) while Navo is still writing, and it writes that dictation again in the new language: no need to wait and say it again. Switching while you talk starts the live text over in the new language. The Flow Bar shows the language it is writing in.
+
 ## 0.15.0
 
 - **Use the models you already have.** Settings > Cleanup and AI > Add a model lists the models LM Studio downloaded, or takes any folder or .gguf file. Navo uses them where they are, so nothing is downloaded twice: MLX folders run on MLX, GGUF files on llama.cpp (Navo adds it to its engine once). Each one is tested right away, and can be picked for summaries, rewrites and translations. Remove takes it out of Navo and never touches its files.

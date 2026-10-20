@@ -114,6 +114,8 @@ class Completion:
     seconds: float
     tokens_per_second: float
     peak_memory_bytes: Optional[int]
+    # Seconds until the first piece of the answer: mostly reading the prompt.
+    first_token_seconds: Optional[float] = None
 
     def usage(self) -> dict:
         return {
@@ -123,10 +125,20 @@ class Completion:
         }
 
     def stats(self) -> dict:
+        first = self.first_token_seconds
+        writing = self.seconds - first if first is not None else None
         return {
             "seconds": round(self.seconds, 2),
             "tokens_per_second": round(self.tokens_per_second, 1),
             "peak_memory_bytes": self.peak_memory_bytes,
+            # Time to the first token, then the writing speed after it, and the reading speed of the prompt.
+            "first_token_ms": int(first * 1000) if first is not None else None,
+            "decode_tokens_per_second": (
+                round((self.completion_tokens - 1) / writing, 1)
+                if writing and writing > 0 and self.completion_tokens > 1
+                else None
+            ),
+            "prompt_tokens_per_second": round(self.prompt_tokens / first, 1) if first else None,
         }
 
 
@@ -424,9 +436,12 @@ class LanguageModel:
         self.status = "writing"
         started = time.perf_counter()
         text, sent, pieces, reason = "", 0, 0, None
+        first: Optional[float] = None
         try:
             for piece, finish in self._generator(self._model, self._tokenizer, prompt, options):
                 pieces += 1
+                if first is None:
+                    first = time.perf_counter() - started
                 text += piece or ""
                 reason = finish or reason
                 cut = min((text.find(s) for s in stops if s in text), default=-1)
@@ -463,6 +478,7 @@ class LanguageModel:
             seconds=seconds,
             tokens_per_second=pieces / seconds if seconds > 0 else 0.0,
             peak_memory_bytes=peak,
+            first_token_seconds=first,
         )
         self.requests += 1
         self.last = completion

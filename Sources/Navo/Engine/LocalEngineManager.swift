@@ -383,6 +383,7 @@ final class LocalEngineManager: ObservableObject {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             try? await Task.sleep(nanoseconds: 300_000_000)
+            if Task.isCancelled { return false } // the dictation was redone (its language changed)
             switch state {
             case .ready, .sleeping:
                 return true

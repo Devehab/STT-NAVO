@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var clipboard: ClipboardStore!
     private var quickPaste: QuickPasteController!
     private var aiWriter: AIWriter!
+    private var metrics: MetricsStore!
     private var activity: MenuBarActivity!
     private var screenPrivacy: ScreenPrivacy!
     private var statusItem: NSStatusItem!
@@ -71,12 +72,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if Paths.isDemo, let database { DemoData.fill(database) }
 
         store = HistoryStore(db: database, openError: openError)
+        metrics = MetricsStore(db: database)
         engine = LocalEngineManager(settings: settings)
-        dictation = DictationController(settings: settings, engine: engine, store: store)
-        sessions = SessionStore(db: database, engine: engine, settings: settings)
+        dictation = DictationController(settings: settings, engine: engine, store: store, metrics: metrics)
+        sessions = SessionStore(db: database, engine: engine, settings: settings, metrics: metrics)
         clipboard = ClipboardStore(db: database, settings: settings)
         quickPaste = QuickPasteController(clipboard: clipboard, settings: settings)
-        aiWriter = AIWriter(settings: settings, engine: engine)
+        aiWriter = AIWriter(settings: settings, engine: engine, metrics: metrics)
         quickPaste.onShortcut = { [weak self] in
             self?.dictation.shortcutPressed()
         }
@@ -88,7 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             sessions: sessions,
             clipboard: clipboard,
             quickPaste: quickPaste,
-            aiWriter: aiWriter
+            aiWriter: aiWriter,
+            metrics: metrics
         )
         flowBar = FlowBarController(dictation: dictation, settings: settings) { [weak self] section in
             self?.showHub(section)
@@ -237,6 +240,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applyRetention() {
         store.applyRetention(textDays: settings.autoDeleteTextDays, audioDays: settings.autoDeleteAudioDays)
         clipboard?.prune()
+        metrics?.prune()
     }
 
     // MARK: Accessibility

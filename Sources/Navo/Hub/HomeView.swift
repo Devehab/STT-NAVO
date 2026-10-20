@@ -292,6 +292,7 @@ private struct HistoryRow: View {
     @EnvironmentObject private var playback: AudioPlayback
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var ai: AIWriter
+    @EnvironmentObject private var metrics: MetricsStore
     @EnvironmentObject private var router: HubRouter
     /// Called, not followed: following dictation would redraw every row many times a second
     /// while you talk.
@@ -430,8 +431,10 @@ private struct HistoryRow: View {
             }
             Text(TextTools.duration(item.duration))
             if let engineName = item.engine {
-                Label(onDeviceLabel(engineName), systemImage: "cpu")
-                    .help("Transcribed on this Mac by the local \(SpeechEngine.from(historyName: engineName).title) model")
+                let measured = metrics.record(for: item.id)
+                Label(onDeviceLabel(engineName, measured: measured), systemImage: "cpu")
+                    .help("Transcribed on this Mac by the local \(SpeechEngine.from(historyName: engineName).title) model."
+                        + (measured.map { "\n\n" + $0.dictationBreakdown } ?? ""))
             }
             if item.cleanup == CleanupMode.local.rawValue || item.cleanup == CleanupMode.custom.rawValue {
                 Label("Polished", systemImage: "sparkles")
@@ -451,8 +454,8 @@ private struct HistoryRow: View {
         .lineLimit(1)
     }
 
-    /// "On this Mac, Audar, MLX, 1.2 s"
-    private func onDeviceLabel(_ engineName: String) -> String {
+    /// "On this Mac, Audar, MLX, 1.2 s, 24×"
+    private func onDeviceLabel(_ engineName: String, measured: PerfRecord?) -> String {
         var parts = ["On this Mac", SpeechEngine.from(historyName: engineName).shortName]
         if engineName.contains("(mlx)") {
             parts.append("MLX")
@@ -461,6 +464,9 @@ private struct HistoryRow: View {
         }
         if let latency = item.latencyMs {
             parts.append(String(format: "%.1f s", Double(latency) / 1000))
+        }
+        if let speed = measured?.speed {
+            parts.append(Perf.speed(speed))
         }
         return parts.joined(separator: ", ")
     }

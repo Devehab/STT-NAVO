@@ -44,6 +44,7 @@ final class DictationController: ObservableObject {
     private let settings: AppSettings
     private let engine: LocalEngineManager
     private let store: HistoryStore
+    private let metrics: MetricsStore?
     private let recorder = AudioRecorder()
     private let hotkeys = HotkeyManager()
     private var languageShortcut: GlobalShortcut?
@@ -65,14 +66,28 @@ final class DictationController: ObservableObject {
     private final class Segment {
         let draft: Dictation
         let samples: [Float]
-        let live: LiveDictation?
+        /// The text written while it was spoken; dropped when the language changes afterwards.
+        var live: LiveDictation?
         var outcome: Outcome?
+        /// When the key was let go.
+        let releasedAt = Date()
+        var timing = Timing()
 
         init(draft: Dictation, samples: [Float], live: LiveDictation?) {
             self.draft = draft
             self.samples = samples
             self.live = live
         }
+    }
+
+    /// Where a dictation's time went after the key was let go (for the Performance page).
+    private struct Timing {
+        var transcribeMs = 0
+        var computeMs: Int?
+        var loadMs = 0
+        var cleanupMs = 0
+        /// Most of it was transcribed while it was spoken: only the end was left.
+        var live = false
     }
 
     private enum Outcome {
@@ -87,13 +102,16 @@ final class DictationController: ObservableObject {
     /// The dictations waiting to be pasted together, oldest first.
     private var run: [Segment] = []
     private var runWorker: Task<Void, Never>?
+    /// Goes up when the run starts over (the language changed): an older worker stops.
+    private var runGeneration = 0
     /// The live text of the dictation being recorded (or just stopped), without the run before it.
     private var currentLive = LiveText()
 
-    init(settings: AppSettings, engine: LocalEngineManager, store: HistoryStore) {
+    init(settings: AppSettings, engine: LocalEngineManager, store: HistoryStore, metrics: MetricsStore? = nil) {
         self.settings = settings
         self.engine = engine
         self.store = store
+        self.metrics = metrics
 
         recorder.onLevel = { [weak self] level in
             guard let self else { return }
@@ -115,6 +133,13 @@ final class DictationController: ObservableObject {
             .dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] shortcut in self?.registerLanguageShortcut(shortcut) }
+            .store(in: &cancellables)
+        // From the shortcut, the Flow Bar, the menu bar or Settings alike.
+        settings.$language
+            .dropFirst()
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.languageDidChange() }
             .store(in: &cancellables)
     }
 
@@ -155,9 +180,36 @@ final class DictationController: ObservableObject {
     }
 
     func setLanguage(_ language: DictationLanguage) {
-        guard settings.dictationEngine.languages.contains(language) else { return }
+        guard settings.dictationEngine.languages.contains(language), language != settings.language else { return }
         settings.language = language
         setLanguageAnnouncement(language)
+    }
+
+    /// The language changed. What you are saying now, and what you said that is not pasted yet,
+    /// are transcribed again in the new language: no need to wait and dictate it again.
+    private func languageDidChange() {
+        if phase.isRecording {
+            live?.restart()
+        }
+        redoRun()
+    }
+
+    /// Transcribes every dictation of the run again, from its recording (the text written while
+    /// it was spoken was in the old language).
+    private func redoRun() {
+        guard !run.isEmpty else { return }
+        runGeneration += 1
+        runWorker?.cancel()
+        runWorker = nil
+        for segment in run {
+            segment.live?.cancel()
+            segment.live = nil
+            segment.outcome = nil
+        }
+        currentLive = LiveText()
+        publishLiveText()
+        if !phase.isRecording { phase = .transcribing }
+        startRunWorker()
     }
 
     private func setLanguageAnnouncement(_ language: DictationLanguage) {
@@ -401,15 +453,29 @@ final class DictationController: ObservableObject {
     /// Transcribes the dictations of the run one after the other, while new ones may be recorded.
     private func startRunWorker() {
         guard runWorker == nil else { return }
+        let generation = runGeneration
         runWorker = Task { @MainActor [weak self] in
-            while let self, let segment = self.run.first(where: { $0.outcome == nil }) {
+            while let self, generation == self.runGeneration, let segment = self.run.first(where: { $0.outcome == nil }) {
                 // Most of a long dictation was transcribed while it was spoken: only the end is left.
+                let finishing = Date()
                 let early = await segment.live?.finish(samples: segment.samples)
-                segment.outcome = await self.transcribe(segment.draft, early: early)
+                let finishMs = Int(Date().timeIntervalSince(finishing) * 1000)
+                guard generation == self.runGeneration else { return }
+                let (outcome, measured) = await self.transcribe(segment.draft, early: early)
+                var timing = measured
+                // The language changed meanwhile: a new worker transcribes it again.
+                guard generation == self.runGeneration else { return }
+                if let early, !early.text.isEmpty {
+                    timing.transcribeMs = finishMs
+                    timing.live = true
+                }
+                segment.outcome = outcome
+                segment.timing = timing
                 self.segmentFinished(segment)
             }
-            self?.runWorker = nil
-            self?.deliverRunIfDone()
+            guard let self, generation == self.runGeneration else { return }
+            self.runWorker = nil
+            self.deliverRunIfDone()
         }
     }
 
@@ -466,8 +532,15 @@ final class DictationController: ObservableObject {
             }
             return
         }
-        let item = texts.count == 1 ? texts[0] : merge(texts, segments: segments)
+        var item = texts.count == 1 ? texts[0] : merge(texts, segments: segments)
+        if !settings.keepAudio, let path = item.audioPath {
+            try? FileManager.default.removeItem(atPath: path)
+            item.audioPath = nil
+        }
+        let measured = measure(item, segments: segments.filter { segment in texts.contains { $0.id == segment.draft.id } })
+        item.latencyMs = measured.totalMs
         store.save(item)
+        metrics?.record(measured)
 
         let words = "\(item.wordCount) \(item.wordCount == 1 ? "word" : "words")"
         let failedNote = failures.isEmpty ? "" : ", \(failures.count) part failed (in History)"
@@ -480,6 +553,29 @@ final class DictationController: ObservableObject {
             if settings.playSounds { Sounds.play(.cancel) }
             show(.done(message), seconds: 5)
         }
+    }
+
+    /// How long the dictation took, from letting go of the key (the last one, in a run) to the text.
+    private func measure(_ item: Dictation, segments: [Segment]) -> PerfRecord {
+        let speech = SpeechEngine.from(historyName: item.engine ?? settings.dictationEngine.historyName)
+        var record = PerfRecord(kind: .dictation, model: speech.rawValue, modelName: speech.title)
+        record.refID = item.id
+        record.audioSeconds = item.duration
+        let released = segments.map(\.releasedAt).max() ?? Date()
+        record.totalMs = Int(Date().timeIntervalSince(released) * 1000)
+        record.transcribeMs = segments.reduce(0) { $0 + $1.timing.transcribeMs }
+        let computes = segments.map(\.timing.computeMs)
+        record.computeMs = computes.contains(where: { $0 == nil }) ? nil : computes.compactMap { $0 }.reduce(0, +)
+        record.loadMs = segments.reduce(0) { $0 + $1.timing.loadMs }
+        record.cleanupMs = segments.reduce(0) { $0 + $1.timing.cleanupMs }
+        record.live = segments.contains { $0.timing.live }
+        switch item.cleanup {
+        case CleanupMode.local.rawValue: record.detail = "cleanup by the Navo engine"
+        case CleanupMode.custom.rawValue: record.detail = "cleanup by your local server"
+        default: break
+        }
+        if segments.count > 1 { record.detail = [record.detail, "\(segments.count) parts pasted together"].compactMap { $0 }.joined(separator: ", ") }
+        return record
     }
 
     /// Several dictations of one run as one history item: their texts in order and, when the
@@ -516,8 +612,13 @@ final class DictationController: ObservableObject {
         phase = .transcribing
         Task { @MainActor [weak self] in
             guard let self else { return }
-            switch await self.transcribe(draft, early: nil) {
+            switch await self.transcribe(draft, early: nil).0 {
             case .text(let done):
+                var done = done
+                if !self.settings.keepAudio, let path = done.audioPath {
+                    try? FileManager.default.removeItem(atPath: path)
+                    done.audioPath = nil
+                }
                 self.store.save(done)
                 TextInjector.copy(done.cleanText)
                 self.show(.done("Re-transcribed and copied"))
@@ -532,16 +633,17 @@ final class DictationController: ObservableObject {
     // MARK: Pipeline
 
     /// Transcribes one recording and cleans the text up. Nothing is saved or pasted here.
-    private func transcribe(_ draft: Dictation, early: TranscriptionClient.Result?) async -> Outcome {
+    private func transcribe(_ draft: Dictation, early: TranscriptionClient.Result?) async -> (Outcome, Timing) {
+        var timing = Timing()
         var item = draft
         let started = Date()
         guard let audioPath = item.audioPath else {
-            return .failed(item, "The recording file is missing")
+            return (.failed(item, "The recording file is missing"), timing)
         }
         let audioURL = URL(fileURLWithPath: audioPath)
 
         guard await engine.waitUntilReady(timeout: 120) else {
-            return .failed(item, engine.state.userMessage.isEmpty ? "The local engine is not ready" : engine.state.userMessage)
+            return (.failed(item, engine.state.userMessage.isEmpty ? "The local engine is not ready" : engine.state.userMessage), timing)
         }
 
         let speech = settings.dictationEngine
@@ -552,13 +654,18 @@ final class DictationController: ObservableObject {
             } else {
                 result = try await TranscriptionClient(baseURL: engine.baseURL(for: speech))
                     .transcribe(fileURL: audioURL, language: settings.language.rawValue)
+                timing.transcribeMs = result.wallMs ?? 0
+                timing.computeMs = result.computeMs
+                timing.loadMs = result.loadMs ?? 0
             }
-            guard !result.text.isEmpty else { return .empty }
+            guard !result.text.isEmpty else { return (.empty, timing) }
             item.rawText = result.text
             item.engine = speech.historyName + (result.backend.map { " (\($0))" } ?? "")
 
             if settings.cleanupMode != .off, !phase.isRecording { phase = .polishing }
+            let cleaning = Date()
             let cleanup = await CleanupService().clean(raw: result.text, config: cleanupConfig(), vocabulary: store.vocabulary)
+            timing.cleanupMs = Int(Date().timeIntervalSince(cleaning) * 1000)
             item.cleanText = cleanup.text
             item.cleanup = cleanup.mode
             item.errorMessage = cleanup.note // why cleanup was skipped, shown in History
@@ -566,14 +673,10 @@ final class DictationController: ObservableObject {
             item.wordCount = TextTools.wordCount(cleanup.text)
             item.latencyMs = Int(Date().timeIntervalSince(started) * 1000)
             item.status = .ok
-
-            if !settings.keepAudio {
-                try? FileManager.default.removeItem(at: audioURL)
-                item.audioPath = nil
-            }
-            return .text(item)
+            // The recording stays until the text is pasted: a change of language redoes it from there.
+            return (.text(item), timing)
         } catch {
-            return .failed(item, error.localizedDescription)
+            return (.failed(item, error.localizedDescription), timing)
         }
     }
 

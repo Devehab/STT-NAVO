@@ -54,6 +54,12 @@ struct TranscriptionClient {
         let processingMs: Int?
         /// Audio length in seconds, as the engine measured it.
         let duration: Double?
+        /// The model was asleep and loaded for this request, this long.
+        var loadMs: Int? = nil
+        /// The engine's own time on the audio, without waiting or loading.
+        var computeMs: Int? = nil
+        /// The whole request as this app saw it.
+        var wallMs: Int? = nil
     }
 
     func transcribe(fileURL: URL, language: String) async throws -> Result {
@@ -64,6 +70,7 @@ struct TranscriptionClient {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         let body = try multipartBody(boundary: boundary, fields: [("language", language)], fileURL: fileURL)
 
+        let started = Date()
         let (data, response) = try await URLSession.shared.upload(for: request, from: body)
         try checkHTTP(data, response)
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -74,7 +81,10 @@ struct TranscriptionClient {
             text: text,
             backend: json["backend"] as? String,
             processingMs: json["processing_ms"] as? Int,
-            duration: json["duration"] as? Double
+            duration: json["duration"] as? Double,
+            loadMs: json["load_ms"] as? Int,
+            computeMs: json["compute_ms"] as? Int,
+            wallMs: Int(Date().timeIntervalSince(started) * 1000)
         )
     }
 }

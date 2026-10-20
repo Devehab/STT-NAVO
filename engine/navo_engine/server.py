@@ -457,9 +457,12 @@ def create_app(engine: Engine) -> FastAPI:
         make_available(service)
         tmp_path = await save_upload(file)
         try:
+            was_loaded = service.backend is not None
             started = time.perf_counter()
             result = await engine.run_speech(service, service.transcribe_file, tmp_path, lang)
             elapsed = int((time.perf_counter() - started) * 1000)
+            # The model was asleep and loaded for this request: that time is not transcribing.
+            load_ms = int((service.load_seconds or 0) * 1000) if not was_loaded else 0
             log.info("%s: %.1f s of audio (%s) in %d ms", service.engine_id, result.audio_seconds, lang, elapsed)
             if (response_format or "json").strip().lower() == "text":
                 return PlainTextResponse(result.text)
@@ -471,6 +474,8 @@ def create_app(engine: Engine) -> FastAPI:
                 "model": service.model_id,
                 "backend": service.backend_name,
                 "processing_ms": elapsed,
+                "load_ms": load_ms,
+                "compute_ms": service.last_processing_ms,
             }
         except HTTPException:
             raise
@@ -602,6 +607,7 @@ def create_app(engine: Engine) -> FastAPI:
             "repetition_penalty": request.repetition_penalty,
             "stop": stop,
         }
+        was_loaded = model.loaded
         try:
             await engine.run(engine._llm_prepare, model, messages, max_tokens)
         except LLMUnavailable as exc:
@@ -612,8 +618,10 @@ def create_app(engine: Engine) -> FastAPI:
             log.exception("%s could not read the request", model.name)
             raise HTTPException(status_code=500, detail=f"{model.name} failed: {exc}") from exc
 
+        # The model loaded for this request: that time comes before the first token.
+        load_ms = int((model.load_seconds or 0) * 1000) if not was_loaded else 0
         if request.stream:
-            return stream_chat(model, request, messages, options)
+            return stream_chat(model, request, messages, options, load_ms)
         try:
             completion = await engine.run(engine._llm_generate, model, request.keep_alive, messages, options)
         except LLMUnavailable as exc:
@@ -626,13 +634,15 @@ def create_app(engine: Engine) -> FastAPI:
         finish = "length" if completion.finish_reason == "length" else "stop"
         body = chat_body(model.model_id, completion.text, finish)
         body["usage"] = completion.usage()
-        body["navo"] = {"llm": model.llm_id, **completion.stats()}
+        body["navo"] = {"llm": model.llm_id, "load_ms": load_ms, **completion.stats()}
         log.info(
             "%s: %d + %d tokens in %.1f s", model.llm_id, completion.prompt_tokens, completion.completion_tokens, completion.seconds
         )
         return body
 
-    def stream_chat(model: LanguageModel, request: ChatRequest, messages: list[dict], options: dict) -> StreamingResponse:
+    def stream_chat(
+        model: LanguageModel, request: ChatRequest, messages: list[dict], options: dict, load_ms: int = 0
+    ) -> StreamingResponse:
         """The answer as server-sent events in OpenAI's chunk format, written piece by piece."""
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue = asyncio.Queue()
@@ -674,7 +684,8 @@ def create_app(engine: Engine) -> FastAPI:
                         yield chunk({"content": value})
                     elif kind == "done":
                         finish = "length" if value.finish_reason == "length" else "stop"
-                        yield chunk({}, finish, usage=value.usage(), navo={"llm": model.llm_id, **value.stats()})
+                        stats = {"llm": model.llm_id, "load_ms": load_ms, **value.stats()}
+                        yield chunk({}, finish, usage=value.usage(), navo=stats)
                         break
                     else:
                         yield f"data: {json.dumps({'error': {'message': f'{model.name} failed: {value}'}})}\n\n"

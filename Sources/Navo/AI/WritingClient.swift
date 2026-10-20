@@ -18,6 +18,14 @@ struct WritingClient: Sendable {
         var tokensPerSecond: Double?
         /// The most memory the model used for this answer, weights included.
         var peakMemoryBytes: Int64?
+        /// From sending the request to the first word, as this app saw it (loading included).
+        var firstTokenMs: Int?
+        /// Writing speed after the first token, as the engine measured it.
+        var decodeTokensPerSecond: Double?
+        /// The model was asleep and loaded for this request, this long.
+        var loadMs: Int?
+        /// The whole request, as this app saw it.
+        var totalMs: Int?
     }
 
     struct Failure: LocalizedError {
@@ -59,6 +67,7 @@ struct WritingClient: Sendable {
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
+        let started = Date()
         let bytes: URLSession.AsyncBytes
         let response: URLResponse
         do {
@@ -89,6 +98,9 @@ struct WritingClient: Sendable {
             }
             if let choice = (json["choices"] as? [[String: Any]])?.first {
                 if let piece = (choice["delta"] as? [String: Any])?["content"] as? String, !piece.isEmpty {
+                    if answer.firstTokenMs == nil {
+                        answer.firstTokenMs = Int(Date().timeIntervalSince(started) * 1000)
+                    }
                     answer.text += piece
                     await onText?(answer.text)
                 }
@@ -103,8 +115,11 @@ struct WritingClient: Sendable {
             if let stats = json["navo"] as? [String: Any] {
                 answer.tokensPerSecond = (stats["tokens_per_second"] as? NSNumber)?.doubleValue
                 answer.peakMemoryBytes = (stats["peak_memory_bytes"] as? NSNumber)?.int64Value
+                answer.decodeTokensPerSecond = (stats["decode_tokens_per_second"] as? NSNumber)?.doubleValue
+                answer.loadMs = (stats["load_ms"] as? NSNumber)?.intValue
             }
         }
+        answer.totalMs = Int(Date().timeIntervalSince(started) * 1000)
         try Task.checkCancellation()
         answer.text = answer.text.trimmingCharacters(in: .whitespacesAndNewlines)
         return answer

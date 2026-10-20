@@ -70,6 +70,8 @@ final class LiveDictation {
     private var failed = false
     /// The key was let go: the request out now finishes (cancelling it would throw its text away).
     private var stopping = false
+    /// Goes up when the language changes: a request sent before that is out of date when it returns.
+    private var generation = 0
     private var previews = true
     private var previewedUpTo = 0
 
@@ -86,6 +88,20 @@ final class LiveDictation {
                 await self.step()
             }
         }
+    }
+
+    /// The language changed while you talk: everything heard so far is transcribed again in the
+    /// new one, from the start, and the text shown starts over.
+    func restart() {
+        generation += 1
+        cut = 0
+        finalCut = 0
+        phrases = []
+        finals = []
+        previewedUpTo = 0
+        failed = false
+        previews = true
+        text = LiveText()
     }
 
     /// The recording was thrown away.
@@ -167,7 +183,10 @@ final class LiveDictation {
             text.preview = ""
             return
         }
-        guard let result = await send(piece) else {
+        let sentIn = generation
+        let reply = await send(piece)
+        guard sentIn == generation else { return } // the language changed meanwhile
+        guard let result = reply else {
             // The full transcription takes over when the key is let go.
             failed = true
             loop?.cancel()
@@ -184,7 +203,10 @@ final class LiveDictation {
         busy = true
         defer { busy = false }
         if !SmartCut.isSilent(piece) {
-            guard let result = await send(piece) else {
+            let sentIn = generation
+            let reply = await send(piece)
+            guard sentIn == generation else { return } // the language changed meanwhile
+            guard let result = reply else {
                 failed = true
                 loop?.cancel()
                 return
@@ -204,12 +226,13 @@ final class LiveDictation {
         busy = true
         defer { busy = false }
         let began = Date()
+        let sentIn = generation
         let result = await send(audio)
         if Date().timeIntervalSince(began) > Self.slowPreview {
             previews = false
         }
-        // A phrase settled meanwhile: this preview is out of date.
-        guard let result, cut == start else { return }
+        // A phrase settled meanwhile, or the language changed: this preview is out of date.
+        guard let result, cut == start, sentIn == generation else { return }
         text.preview = result.text
     }
 
