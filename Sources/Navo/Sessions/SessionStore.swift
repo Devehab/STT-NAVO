@@ -507,17 +507,32 @@ final class SessionStore: ObservableObject {
 
     /// Deletes the session, its transcript and its audio, permanently.
     func delete(_ id: String) {
-        if recorder.sessionID == id { return }
+        guard remove(id) else { return }
+        try? db?.compact()
+    }
+
+    /// Deletes several, permanently (the one being recorded is skipped).
+    func delete(_ ids: [String]) {
+        cancel(ids) // the ones in line first, so none of them starts as another one stops
+        var removed = false
+        for id in ids where remove(id) {
+            removed = true
+        }
+        if removed { try? db?.compact() }
+    }
+
+    private func remove(_ id: String) -> Bool {
+        if recorder.sessionID == id { return false }
         cancel(id)
         do {
             try db?.deleteSession(id: id)
         } catch {
             lastError = error.localizedDescription
-            return
+            return false
         }
         sessions.removeAll { $0.id == id }
         try? FileManager.default.removeItem(at: Paths.sessionsDir.appendingPathComponent(id, isDirectory: true))
-        try? db?.compact()
+        return true
     }
 
     // MARK: Transcription
@@ -563,6 +578,39 @@ final class SessionStore: ObservableObject {
             liveDraft[id] = nil
         }
         tasks[id]?.cancel()
+    }
+
+    /// Stops several: the ones waiting in line first, so none of them starts as a running one
+    /// stops, then the running ones. Live meeting text is left alone (it belongs to its recording).
+    func cancel(_ ids: [String]) {
+        let chosen = Set(ids)
+        for job in queue where chosen.contains(job.id) {
+            cancel(job.id)
+        }
+        for id in ids where tasks[id] != nil && jobs[id]?.live != true {
+            cancel(id)
+        }
+    }
+
+    /// The transcriptions of meetings or of files that are running or waiting (not live text).
+    func queuedJobs(of kind: SessionKind) -> [String] {
+        jobsInOrder.map(\.id).filter { id in
+            jobs[id]?.live != true && session(id)?.kind == kind
+        }
+    }
+
+    /// Transcribes several, one after the other in this order, with the same engine and language.
+    /// The ones already running or waiting, being recorded, or without audio are skipped.
+    /// Returns how many were put in line.
+    @discardableResult
+    func transcribe(_ ids: [String], engine speech: SpeechEngine, language: String) -> Int {
+        var count = 0
+        for id in ids {
+            guard let session = session(id), session.hasAudio, session.status != .recording, !isTranscribing(id) else { continue }
+            transcribe(id, engine: speech, language: language)
+            if isTranscribing(id) { count += 1 }
+        }
+        return count
     }
 
     /// Why `speech` can't transcribe now: it is off and two other engines are on.

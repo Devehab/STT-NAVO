@@ -198,9 +198,14 @@ struct SessionBrowser: View {
     @EnvironmentObject private var router: HubRouter
     @StateObject private var player = SessionPlayer()
     @StateObject private var filter = SessionFilter()
-    @State private var selection: String?
+    /// One opens it; several (⌘-click, ⇧-click, ⌘A or the Select menu) can be transcribed again,
+    /// stopped or deleted together.
+    @State private var selection: Set<String> = []
 
     private var items: [Session] { sessions.sessions(of: kind) }
+
+    /// The one open, when only one is selected.
+    private var single: String? { selection.count == 1 ? selection.first : nil }
 
     var body: some View {
         let all = self.items
@@ -216,9 +221,10 @@ struct SessionBrowser: View {
         }
         .browserCard()
         .onAppear {
-            if !showFocused(), selection == nil || !items.contains(where: { $0.id == selection }) {
+            selection = selection.filter { id in items.contains { $0.id == id } }
+            if !showFocused(), selection.isEmpty {
                 // The one being recorded has its own panel: open the latest finished one.
-                selection = (items.first { $0.status != .recording } ?? items.first)?.id
+                selection = Set([(items.first { $0.status != .recording } ?? items.first)?.id].compactMap { $0 })
             }
         }
         .onChange(of: router.focusedSession) { _, _ in
@@ -228,8 +234,9 @@ struct SessionBrowser: View {
             // Something new arrived (an import, a recording): show it, unless you are
             // following a transcription that is still running.
             guard let newest, newest != old else { return }
-            if let current = selection, sessions.isTranscribing(current), !sessions.isWaiting(current) { return }
-            selection = newest
+            if selection.count > 1 { return } // you are picking several: leave them
+            if let current = single, sessions.isTranscribing(current), !sessions.isWaiting(current) { return }
+            selection = [newest]
         }
         .onChange(of: filter.query) { _, _ in
             filter.search(in: items)
@@ -241,7 +248,8 @@ struct SessionBrowser: View {
         .onChange(of: shown.map(\.id)) { _, ids in
             // The search or the dates changed what is listed: keep something listed selected.
             guard filter.isActive, let first = ids.first else { return }
-            if selection == nil || !ids.contains(selection ?? "") { selection = first }
+            let kept = selection.filter { ids.contains($0) }
+            selection = kept.isEmpty ? [first] : kept
         }
         .onDisappear { player.stop() }
     }
@@ -267,8 +275,9 @@ struct SessionBrowser: View {
             .frame(maxWidth: .infinity)
         } else {
             VStack(spacing: 0) {
-                filterBar(shown: shown.count, of: all.count)
+                filterBar(shown: shown, of: all.count)
                 Divider()
+                QueueStrip(kind: kind)
                 if shown.isEmpty {
                     noMatches
                 } else {
@@ -285,7 +294,14 @@ struct SessionBrowser: View {
     @ViewBuilder
     private var detailColumn: some View {
         Group {
-            if let id = selection, let session = sessions.session(id) {
+            if selection.count > 1 {
+                SelectionPanel(
+                    kind: kind,
+                    // In the order of the list: that is the order they are transcribed in.
+                    ids: items.map(\.id).filter { selection.contains($0) },
+                    clear: { selection = [] }
+                )
+            } else if let id = single, let session = sessions.session(id) {
                 SessionDetail(session: session, player: player)
                     .id(session.id)
             } else {
@@ -300,13 +316,14 @@ struct SessionBrowser: View {
     private var noun: String { kind == .meeting ? "recordings" : "files" }
 
     /// Search by words in the title or the text, and narrow to a day or a stretch of days.
-    private func filterBar(shown: Int, of total: Int) -> some View {
+    private func filterBar(shown: [Session], of total: Int) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             SearchField("Search \(noun) and their text", text: $filter.query)
             HStack(spacing: 6) {
                 DateFilterMenu(period: $filter.period)
+                selectMenu(shown)
                 Spacer(minLength: 4)
-                Text(filter.isActive ? "\(shown) of \(total)" : "\(total)")
+                Text(selection.count > 1 ? "\(selection.count) selected" : filter.isActive ? "\(shown.count) of \(total)" : "\(total)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
                 if filter.isActive {
@@ -322,6 +339,31 @@ struct SessionBrowser: View {
             }
         }
         .padding(10)
+    }
+
+    /// Picks several at once (⌘-click and ⇧-click in the list do too).
+    private func selectMenu(_ shown: [Session]) -> some View {
+        let done = shown.filter { !$0.chunks.isEmpty }
+        let notYet = shown.filter { $0.chunks.isEmpty && $0.hasAudio && $0.status != .recording }
+        let unfinished = shown.filter { $0.status == .failed || $0.status == .partial }
+        return Menu {
+            Button("All \(shown.count) shown") { selection = Set(shown.map(\.id)) }
+            Button("Transcribed (\(done.count))") { selection = Set(done.map(\.id)) }
+                .disabled(done.isEmpty)
+            Button("Not transcribed yet (\(notYet.count))") { selection = Set(notYet.map(\.id)) }
+                .disabled(notYet.isEmpty)
+            Button("Failed or partly done (\(unfinished.count))") { selection = Set(unfinished.map(\.id)) }
+                .disabled(unfinished.isEmpty)
+            Divider()
+            Button("Only the first") { selection = Set(shown.prefix(1).map(\.id)) }
+                .disabled(selection.count <= 1)
+        } label: {
+            Label("Select", systemImage: "checklist")
+        }
+        .menuStyle(.button)
+        .buttonStyle(.borderless)
+        .fixedSize()
+        .help("Select several \(noun) to transcribe them again with another engine, stop them or delete them together. In the list, ⌘-click adds one and ⇧-click a range.")
     }
 
     private var noMatches: some View {
@@ -356,7 +398,7 @@ struct SessionBrowser: View {
     private func showFocused() -> Bool {
         guard let id = router.focusedSession, items.contains(where: { $0.id == id }) else { return false }
         filter.reset() // it may be outside the dates or the search
-        selection = id
+        selection = [id]
         router.focusedSession = nil
         return true
     }
@@ -736,6 +778,20 @@ private struct TranscribeButton: View {
     let session: Session
 
     @EnvironmentObject private var sessions: SessionStore
+
+    var body: some View {
+        EngineLanguageMenu(title: session.chunks.isEmpty ? "Transcribe" : "Transcribe again") { speech, language in
+            sessions.transcribe(session.id, engine: speech, language: language)
+        }
+    }
+}
+
+/// A button that runs `action` with the engine and language chosen above; its arrow lists the
+/// engines that can be on, each with its languages.
+private struct EngineLanguageMenu: View {
+    let title: String
+    let action: (SpeechEngine, String) -> Void
+
     @EnvironmentObject private var settings: AppSettings
 
     var body: some View {
@@ -743,19 +799,186 @@ private struct TranscribeButton: View {
             ForEach(SpeechEngine.allCases.filter { settings.canEnable($0) }) { speech in
                 Section(speech.title) {
                     ForEach(speech.languages) { language in
-                        Button(language.name) {
-                            sessions.transcribe(session.id, engine: speech, language: language.rawValue)
-                        }
+                        Button(language.name) { action(speech, language.rawValue) }
                     }
                 }
             }
         } label: {
-            Text(session.chunks.isEmpty ? "Transcribe" : "Transcribe again")
+            Text(title)
         } primaryAction: {
             let speech = settings.jobEngineInUse
-            sessions.transcribe(session.id, engine: speech, language: settings.jobLanguage(for: speech).rawValue)
+            action(speech, settings.jobLanguage(for: speech).rawValue)
         }
         .fixedSize()
         .help("Click: \(settings.jobEngineInUse.shortName), \(settings.jobLanguage(for: settings.jobEngineInUse).name). The arrow: another engine or language.")
+    }
+}
+
+/// The transcriptions in line, above the list: which one is running, how many wait, and Stop all.
+private struct QueueStrip: View {
+    let kind: SessionKind
+
+    @EnvironmentObject private var sessions: SessionStore
+
+    var body: some View {
+        let ids = sessions.queuedJobs(of: kind)
+        if !ids.isEmpty {
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(line(ids))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 4)
+                    Button("Stop all") { sessions.cancel(ids) }
+                        .controlSize(.small)
+                        .help("Stops the one being transcribed and takes the others out of the line. The text already written stays, and Continue goes on from there. Recording and live text are not touched.")
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                Divider()
+            }
+        }
+    }
+
+    private func line(_ ids: [String]) -> String {
+        let waiting = ids.filter { sessions.isWaiting($0) }.count
+        let running = ids.first { !sessions.isWaiting($0) }.flatMap { sessions.session($0) }
+        var parts: [String] = []
+        if let running {
+            var now = "Transcribing \u{201C}\(running.title)\u{201D}"
+            if let job = sessions.jobs[running.id], job.partsTotal > 0 {
+                now += ", part \(min(job.partsDone + 1, job.partsTotal)) of \(job.partsTotal)"
+            }
+            parts.append(now)
+        }
+        if waiting > 0 {
+            var line = "\(waiting) waiting"
+            if running == nil {
+                // One at a time for meetings and files together: the one running is in the other tab.
+                line += kind == .meeting ? " behind a file in Transcribe" : " behind a recording in Notetaker"
+            }
+            parts.append(line)
+        }
+        return parts.joined(separator: ", ")
+    }
+}
+
+/// Several recordings or files selected: transcribe them again with one engine and language, one
+/// after the other, stop them, or delete them.
+private struct SelectionPanel: View {
+    let kind: SessionKind
+    /// In the order of the list.
+    let ids: [String]
+    let clear: () -> Void
+
+    @EnvironmentObject private var sessions: SessionStore
+    @State private var confirmDelete = false
+    @State private var notice: String?
+
+    private var noun: String { kind == .meeting ? "recordings" : "files" }
+
+    var body: some View {
+        let chosen = ids.compactMap { sessions.session($0) }
+        let redo = chosen.filter { $0.hasAudio && $0.status != .recording && !sessions.isTranscribing($0.id) }
+        let busy = chosen.filter { sessions.isTranscribing($0.id) && sessions.jobs[$0.id]?.live != true }
+        let deletable = chosen.filter { $0.status != .recording }
+        let skipped = chosen.count - redo.count - busy.count
+
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(chosen.count) \(noun) selected")
+                    .font(.system(size: 18, weight: .semibold))
+                Text(summary(chosen))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 10) {
+                EngineLanguageMenu(title: redoTitle(redo)) { speech, language in
+                    let count = sessions.transcribe(redo.map(\.id), engine: speech, language: language)
+                    notice = count == 0
+                        ? "None could start. See the message in each one."
+                        : "\(count) in line with \(speech.shortName), \((DictationLanguage(rawValue: language) ?? .ar).name). They run one after the other, in this order."
+                }
+                .disabled(redo.isEmpty)
+                if !busy.isEmpty {
+                    Button("Stop \(busy.count)") {
+                        sessions.cancel(busy.map(\.id))
+                        notice = nil
+                    }
+                    .help("Stops the selected ones that are being transcribed or waiting. The text already written stays.")
+                }
+                Spacer()
+                Button("Delete \(deletable.count)…", role: .destructive) { confirmDelete = true }
+                    .disabled(deletable.isEmpty)
+            }
+
+            Text("One at a time, in the order below: each one starts when the one before it is done, and Stop takes them all out. Recording a new meeting, its live text and reading the others go on meanwhile. Transcribing again replaces the text there is, once that one's turn comes.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if skipped > 0 {
+                Text("\(skipped) of them can't be transcribed now (being recorded, or the audio is gone).")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+            if let notice {
+                Label(notice, systemImage: "checkmark.circle")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            List(chosen) { session in
+                HStack(spacing: 8) {
+                    Text(session.title)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 6)
+                    Text(SessionStore.clock(session.duration))
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    SessionStatusChip(session: session)
+                }
+            }
+            .listStyle(.inset)
+
+            HStack {
+                Text("⌘-click adds or removes one, ⇧-click a range.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Clear selection", action: clear)
+            }
+        }
+        .padding(18)
+        .confirmationDialog("Delete \(deletable.count) \(noun)?", isPresented: $confirmDelete) {
+            Button("Delete \(deletable.count) permanently", role: .destructive) {
+                sessions.delete(deletable.map(\.id))
+                clear()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Their audio and their text are erased from this Mac. This cannot be undone.")
+        }
+    }
+
+    private func redoTitle(_ redo: [Session]) -> String {
+        guard !redo.isEmpty else { return "Transcribe again" }
+        return redo.allSatisfy { !$0.chunks.isEmpty } ? "Transcribe \(redo.count) again" : "Transcribe \(redo.count)"
+    }
+
+    private func summary(_ chosen: [Session]) -> String {
+        let total = chosen.reduce(0) { $0 + $1.duration }
+        let done = chosen.filter { $0.status == .done }.count
+        let notYet = chosen.filter { $0.chunks.isEmpty && $0.status != .transcribing && $0.status != .recording }.count
+        var parts = ["\(SessionStore.clock(total)) in all"]
+        if done > 0 { parts.append("\(done) done") }
+        if notYet > 0 { parts.append("\(notYet) not transcribed") }
+        return parts.joined(separator: ", ")
     }
 }

@@ -3,6 +3,12 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.19.0
+
+- **Select several recordings or files, and redo them with another model.** In Notetaker and Transcribe, ⌘-click or ⇧-click in the list, or use Select (all, transcribed, not transcribed yet, failed or partly done). With several selected: Transcribe again with the engine and language chosen above, or pick any other engine and language from its arrow. They go in line in the order of the list and run one after the other: each starts when the one before it is done.
+- **Stop them all.** Stop takes the selected ones out of the line, and a line above the list shows what is being transcribed, how many wait, and Stop all. The text already written stays, and Continue goes on from there. Recording a new meeting, its live text and reading the others are not touched.
+- **Delete several at once**, with one confirmation.
+
 ## 0.18.0
 
 - **Read your other recordings while one is recording.** In Notetaker, Other recordings opens the list while the meeting goes on: read, play, copy or summarize an old one. The recording stays in a bar at the top with its time, its latest words, Pause and Stop, and Show live text brings the panel back. Playing an old recording no longer ends up in the one being recorded: Navo leaves its own sound out of the Mac audio it records.
