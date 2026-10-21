@@ -75,7 +75,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .performance: return "How fast each model is on this Mac, measured on your own dictations, transcriptions and AI answers."
         case .flowBar: return "The small bar at the edge of the screen that shows you are dictating."
         case .clipboard: return "Everything you copy, kept on this Mac so you can paste it again later."
-        case .privacy: return "Keep Navo out of screen sharing, and see for yourself that everything stays on this Mac."
+        case .privacy: return "Keep Navo out of screen sharing, pick how its menu bar icon looks, and see for yourself that everything stays on this Mac."
         case .storage: return "Your dictations and recordings: how long they are kept, and deleting them."
         }
     }
@@ -296,6 +296,7 @@ struct SettingsView: View {
         case .notetaker:
             notetakerSection
             transcribeSection
+            DoneNotificationsSection()
         case .performance:
             PerformanceSections(compareOnFile: { pickAudio = true })
         case .flowBar:
@@ -304,6 +305,7 @@ struct SettingsView: View {
             clipboardSection
         case .privacy:
             privateModeSection
+            MenuBarIconSection()
             localProofSection
         case .storage:
             historySections

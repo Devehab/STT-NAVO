@@ -6,6 +6,7 @@ struct RecordView: View {
     @EnvironmentObject private var sessions: SessionStore
     @EnvironmentObject private var recorder: MeetingRecorder
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var router: HubRouter
     /// While recording: the other recordings are shown, with the recording in a bar above.
     @State private var browsing = false
 
@@ -41,6 +42,15 @@ struct RecordView: View {
         .onChange(of: recorder.phase) { _, phase in
             if phase == .idle { browsing = false }
         }
+        .onChange(of: router.focusedSession) { _, id in openList(for: id) }
+        .onAppear { openList(for: router.focusedSession) }
+    }
+
+    /// Another recording asked for (the menu bar, a notification) while one is being recorded:
+    /// the list shows it, with the recording in the bar above.
+    private func openList(for id: String?) {
+        guard let id, recorder.phase != .idle, id != recorder.sessionID else { return }
+        browsing = true
     }
 
     private var browser: some View {

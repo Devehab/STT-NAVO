@@ -48,9 +48,9 @@ final class SessionStore: ObservableObject {
     }
     /// Files being copied in right now.
     @Published private(set) var importing = 0
-    /// Called with the saved session when a transcription ends by itself (done or failed), not
-    /// when it is stopped by hand.
-    var onTranscriptionEnded: ((Session) -> Void)?
+    /// Each is called with the saved session when a transcription ends by itself (done or
+    /// failed), not when it is stopped by hand. The ones still in line have not started yet then.
+    private var endedListeners: [(Session) -> Void] = []
     /// Inbox files handed to an import that has not finished, so a second look does not take them again.
     private var inboxPending: Set<URL> = []
 
@@ -592,6 +592,16 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    /// Hears each transcription that ends by itself (done or failed).
+    func whenTranscriptionEnds(_ listener: @escaping (Session) -> Void) {
+        endedListeners.append(listener)
+    }
+
+    /// Transcriptions of meetings and files running or in line (live text not counted).
+    var hasQueuedWork: Bool {
+        jobs.contains { $0.value.live == false }
+    }
+
     /// The transcriptions of meetings or of files that are running or waiting (not live text).
     func queuedJobs(of kind: SessionKind) -> [String] {
         jobsInOrder.map(\.id).filter { id in
@@ -793,7 +803,7 @@ final class SessionStore: ObservableObject {
             ProblemLog.shared.report("Transcription", "\(current.kind == .meeting ? "A meeting" : "A file"): \(error)\(why)")
         }
         if case .cancelled = outcome { return }
-        onTranscriptionEnded?(current)
+        for listener in endedListeners { listener(current) }
     }
 
     enum Outcome {

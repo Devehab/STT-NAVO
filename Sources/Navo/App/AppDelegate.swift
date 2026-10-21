@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var aiWriter: AIWriter!
     private var metrics: MetricsStore!
     private var activity: MenuBarActivity!
+    private var notifier: DoneNotifier!
     private var screenPrivacy: ScreenPrivacy!
     private var statusItem: NSStatusItem!
     /// What the menu bar icon shows now, so it is only redrawn when that changes.
@@ -108,7 +109,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         activity.onChange = { [weak self] in
             self?.activityChanged()
         }
+        notifier = DoneNotifier(sessions: sessions, settings: settings)
+        DoneNotifier.current = notifier
+        notifier.open = { [weak self] id in
+            self?.open(sessionID: id)
+        }
         setupStatusItem()
+        // The menu bar icon's look changed in Settings: draw it again, with the new values.
+        Publishers.Merge3(
+            settings.$menuBarStyle.map { _ in () },
+            settings.$menuBarEmoji.map { _ in () },
+            settings.$menuBarShowsText.map { _ in () }
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] in
+            self?.drawnLook = nil
+            self?.drawStatusItem()
+        }
+        .store(in: &cancellables)
         dictation.start()
         quickPaste.registerShortcut()
         engine.startIfInstalled()
@@ -429,27 +447,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let look = activity.look
         guard look != drawnLook else { return }
         drawnLook = look
+        // Emoji you picked instead of Navo's icons: nothing on it says recording to anyone who
+        // sees your screen. Settings > Privacy > Menu bar icon.
+        let emoji: MenuBarEmoji? = settings.menuBarStyle == .emoji ? settings.menuBarEmoji : nil
+        let text = settings.menuBarShowsText
         switch look {
         case .idle:
-            button.image = MenuBarImages.idle()
-            button.title = ""
+            show(MenuBarImages.idle(), emoji: emoji?.idle, title: "", on: button)
             button.toolTip = "Navo"
         case .recording(let paused, let clock):
-            button.image = MenuBarImages.recording(paused: paused)
-            button.title = clock
-            button.toolTip = paused ? "Meeting recording paused at \(clock)" : "Recording a meeting: \(clock)"
+            show(MenuBarImages.recording(paused: paused), emoji: paused ? emoji?.paused : emoji?.recording, title: text ? clock : "", on: button)
+            button.toolTip = emoji != nil ? "Navo" : paused ? "Meeting recording paused at \(clock)" : "Recording a meeting: \(clock)"
         case .working(let percent):
-            button.image = MenuBarImages.progress(percent.map { Double($0) / 100 })
-            button.title = percent.map { "\($0)%" } ?? "…"
-            button.toolTip = percent.map { "Transcribing: \($0)% done. Click for details." } ?? "Transcribing. Click for details."
+            show(MenuBarImages.progress(percent.map { Double($0) / 100 }), emoji: emoji?.working, title: text ? percent.map { "\($0)%" } ?? "…" : "", on: button)
+            button.toolTip = emoji != nil ? "Navo" : percent.map { "Transcribing: \($0)% done. Click for details." } ?? "Transcribing. Click for details."
         case .finished(let ok):
-            button.image = ok ? MenuBarImages.done() : MenuBarImages.problem()
-            button.title = "Done"
-            button.toolTip = ok
+            show(ok ? MenuBarImages.done() : MenuBarImages.problem(), emoji: emoji?.done, title: text && emoji == nil ? "Done" : "", on: button)
+            button.toolTip = emoji != nil ? "Navo" : ok
                 ? "Transcription done. Click to see it."
                 : "Transcription done, but some of it could not be transcribed. Click to see it."
         }
-        button.imagePosition = button.title.isEmpty ? .imageOnly : .imageLeading
+    }
+
+    /// The icon (or the emoji picked for this state, when there is one) and the text beside it.
+    private func show(_ image: NSImage?, emoji: String?, title: String, on button: NSStatusBarButton) {
+        if let emoji, !emoji.isEmpty {
+            button.image = nil
+            button.title = title.isEmpty ? emoji : "\(emoji) \(title)"
+            button.imagePosition = .noImage
+        } else {
+            button.image = image
+            button.title = title
+            button.imagePosition = title.isEmpty ? .imageOnly : .imageLeading
+        }
     }
 
     /// The transcriptions at the top of the menu: running, in line, and just finished.
@@ -488,17 +518,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func openSession(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String, let session = sessions.session(id) else {
+        open(sessionID: sender.representedObject as? String)
+    }
+
+    /// Shows a recording or file in its tab (from the menu bar or a notification).
+    private func open(sessionID id: String?) {
+        guard let id, let session = sessions.session(id) else {
             showHub(nil)
             return
         }
         if session.kind == .file {
             hub.show(section: .files, session: id)
-        } else if sessions.recorder.phase == .idle {
-            hub.show(section: .record, session: id)
-        } else {
-            // The Record tab shows the recording in progress until it stops.
+        } else if sessions.recorder.sessionID == id {
+            // The one being recorded: its panel.
             hub.show(section: .record)
+        } else {
+            // Another recording, even while one is being recorded: Notetaker opens the list for it.
+            hub.show(section: .record, session: id)
         }
     }
 

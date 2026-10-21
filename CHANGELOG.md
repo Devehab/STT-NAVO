@@ -3,6 +3,12 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.20.0
+
+- **A notification when transcriptions are done.** Pick in Settings > Notetaker and Transcribe: when everything in line is done (one notification, even for ten files, with how many worked), for each one as it finishes (the last one says how all of them went), or never. Clicking it opens the recording or file, even while another meeting is being recorded. macOS asks once whether Navo may show them, when the first transcription starts; Send a test shows how one looks. macOS keeps them off the screen while you share it.
+- **Emoji in the menu bar instead of the recording dot.** Settings > Privacy > Menu bar icon: keep Navo's icons, or pick an emoji for recording, paused, transcribing and done (and, if you like, for nothing going on), so nothing in the menu bar says "recording" to anyone who sees your screen. The time and the percentage next to it can be hidden too, and the tooltip then only says Navo.
+- **Opening another recording while one is recorded** from the menu bar or a notification shows it in the list, with the recording in the bar above.
+
 ## 0.19.0
 
 - **Select several recordings or files, and redo them with another model.** In Notetaker and Transcribe, ⌘-click or ⇧-click in the list, or use Select (all, transcribed, not transcribed yet, failed or partly done). With several selected: Transcribe again with the engine and language chosen above, or pick any other engine and language from its arrow. They go in line in the order of the list and run one after the other: each starts when the one before it is done.

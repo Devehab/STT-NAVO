@@ -51,7 +51,7 @@ final class MenuBarActivity {
         )
         .sink { [weak self] in self?.setNeedsRefresh() }
         .store(in: &cancellables)
-        sessions.onTranscriptionEnded = { [weak self] session in
+        sessions.whenTranscriptionEnds { [weak self] session in
             self?.ended(session)
         }
         look = currentLook()

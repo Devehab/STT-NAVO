@@ -120,6 +120,57 @@ enum PushToTalkKey: String, CaseIterable, Identifiable {
     }
 }
 
+/// When a notification says that transcriptions are done.
+enum DoneNotifications: String, CaseIterable, Identifiable {
+    /// One for each recording or file as it is done (the last of a batch says the batch is done).
+    case each
+    /// One when everything in line is done.
+    case allDone
+    case off
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .each: return "For each one"
+        case .allDone: return "When all in line are done"
+        case .off: return "Never"
+        }
+    }
+}
+
+/// How the menu bar icon looks.
+enum MenuBarStyle: String, CaseIterable, Identifiable {
+    /// Navo's icons: a red dot while recording, a pie while transcribing, a check when done.
+    case icons
+    /// Emoji you pick: nothing on it says what Navo is doing, to anyone who sees your screen.
+    case emoji
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .icons: return "Navo's icons"
+        case .emoji: return "Emoji I pick"
+        }
+    }
+}
+
+/// The emoji of each state of the menu bar icon, in the emoji style. Empty: Navo's own icon.
+struct MenuBarEmoji: Codable, Equatable {
+    var idle = ""
+    var recording = "🌿"
+    var paused = "🍂"
+    var working = "⏳"
+    var done = "☕️"
+
+    /// One character: the last one typed or picked, so a new emoji replaces the old one (an
+    /// emoji with its skin tone or flag is one character).
+    static func clean(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).last.map(String.init) ?? ""
+    }
+}
+
 enum FlowBarEdge: String, CaseIterable, Identifiable {
     case bottom
     case left
@@ -194,6 +245,10 @@ final class AppSettings: ObservableObject {
         static let keepTalking = "keepTalkingWhileProcessing"
         static let customModels = "customWritingModels"
         static let privateMode = "hideFromScreenSharing"
+        static let doneNotifications = "doneNotifications"
+        static let menuBarStyle = "menuBarStyle"
+        static let menuBarEmoji = "menuBarEmoji"
+        static let menuBarShowsText = "menuBarShowsText"
     }
 
     /// 0 is Live: text as you speak, a phrase at a time (see `livePieceSeconds`).
@@ -236,6 +291,14 @@ final class AppSettings: ObservableObject {
     /// Private mode: Navo's windows (the Hub, the Flow Bar, the live text, the clipboard list) stay
     /// out of screen sharing, screenshots and screen recordings. You still see them.
     @Published var privateMode: Bool { didSet { defaults.set(privateMode, forKey: Key.privateMode) } }
+    /// A notification when transcriptions are done.
+    @Published var doneNotifications: DoneNotifications { didSet { defaults.set(doneNotifications.rawValue, forKey: Key.doneNotifications) } }
+    @Published var menuBarStyle: MenuBarStyle { didSet { defaults.set(menuBarStyle.rawValue, forKey: Key.menuBarStyle) } }
+    @Published var menuBarEmoji: MenuBarEmoji {
+        didSet { defaults.set(try? JSONEncoder().encode(menuBarEmoji), forKey: Key.menuBarEmoji) }
+    }
+    /// The recording's clock and the transcription's percentage next to the menu bar icon.
+    @Published var menuBarShowsText: Bool { didSet { defaults.set(menuBarShowsText, forKey: Key.menuBarShowsText) } }
 
     /// Whether the Flow Bar shows its bubble when you are not dictating.
     var flowBarShowsWhenIdle: Bool {
@@ -346,6 +409,9 @@ final class AppSettings: ObservableObject {
             Key.liveDictation: true,
             Key.keepTalking: true,
             Key.privateMode: false,
+            Key.doneNotifications: DoneNotifications.allDone.rawValue,
+            Key.menuBarStyle: MenuBarStyle.icons.rawValue,
+            Key.menuBarShowsText: true,
             Key.flowBarEdge: FlowBarEdge.bottom.rawValue,
             Key.flowBarPosition: 0.5,
             Key.hasOnboarded: false,
@@ -387,6 +453,10 @@ final class AppSettings: ObservableObject {
         liveDictation = defaults.bool(forKey: Key.liveDictation)
         keepTalkingWhileProcessing = defaults.bool(forKey: Key.keepTalking)
         privateMode = defaults.bool(forKey: Key.privateMode)
+        doneNotifications = DoneNotifications(rawValue: defaults.string(forKey: Key.doneNotifications) ?? "") ?? .allDone
+        menuBarStyle = MenuBarStyle(rawValue: defaults.string(forKey: Key.menuBarStyle) ?? "") ?? .icons
+        menuBarEmoji = defaults.data(forKey: Key.menuBarEmoji).flatMap { try? JSONDecoder().decode(MenuBarEmoji.self, from: $0) } ?? MenuBarEmoji()
+        menuBarShowsText = defaults.bool(forKey: Key.menuBarShowsText)
         let hiddenUntil = defaults.double(forKey: Key.flowBarHiddenUntil)
         flowBarHiddenUntil = hiddenUntil > Date().timeIntervalSince1970 ? Date(timeIntervalSince1970: hiddenUntil) : nil
         flowBarEdge = FlowBarEdge(rawValue: defaults.string(forKey: Key.flowBarEdge) ?? "") ?? .bottom
