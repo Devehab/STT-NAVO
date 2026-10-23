@@ -610,6 +610,8 @@ private struct SessionDetail: View {
                         }
                     }
                     if !session.chunks.isEmpty {
+                        Button("Export as Word…") { exportWord(withTimes: false) }
+                        Button("Export as Word with times…") { exportWord(withTimes: true) }
                         Button("Export text…") { sessions.exportTranscript(session.id, withTimes: false) }
                         Button("Export text with times…") { sessions.exportTranscript(session.id, withTimes: true) }
                     }
@@ -632,6 +634,16 @@ private struct SessionDetail: View {
             }
             .font(.callout)
             .foregroundStyle(.secondary)
+        }
+    }
+
+    private func exportWord(withTimes: Bool) {
+        do {
+            if let url = try TranscriptExport.save([session], format: .word, withTimes: withTimes) {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            }
+        } catch {
+            ProblemLog.shared.report("Export", "Could not save \"\(session.title)\" as Word: \(error.localizedDescription)")
         }
     }
 
@@ -876,8 +888,13 @@ private struct SelectionPanel: View {
     let clear: () -> Void
 
     @EnvironmentObject private var sessions: SessionStore
+    @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var ai: AIWriter
+    @EnvironmentObject private var router: HubRouter
     @State private var confirmDelete = false
     @State private var notice: String?
+    @State private var copied = false
+    @State private var writing = false
 
     private var noun: String { kind == .meeting ? "recordings" : "files" }
 
@@ -916,6 +933,8 @@ private struct SelectionPanel: View {
                 Button("Delete \(deletable.count)…", role: .destructive) { confirmDelete = true }
                     .disabled(deletable.isEmpty)
             }
+
+            textActions(chosen)
 
             Text("One at a time, in the order below: each one starts when the one before it is done, and Stop takes them all out. Recording a new meeting, its live text and reading the others go on meanwhile. Transcribing again replaces the text there is, once that one's turn comes.")
                 .font(.caption)
@@ -964,6 +983,75 @@ private struct SelectionPanel: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Their audio and their text are erased from this Mac. This cannot be undone.")
+        }
+    }
+
+    /// Their texts together, oldest first, each with its title and date: copied, saved as a Word
+    /// document or a text file, or given to the AI.
+    @ViewBuilder
+    private func textActions(_ chosen: [Session]) -> some View {
+        let withText = TranscriptExport.ordered(chosen)
+        HStack(spacing: 10) {
+            Menu {
+                Button("Copy with times") { copy(withText, withTimes: true) }
+            } label: {
+                Label(copied ? "Copied" : "Copy \(withText.count)", systemImage: copied ? "checkmark" : "doc.on.doc")
+            } primaryAction: {
+                copy(withText, withTimes: false)
+            }
+            .fixedSize()
+            .help("Copies their texts, oldest first, each with its title and when it was recorded. The arrow: with the time of each paragraph.")
+            Menu {
+                Button("Word document (.docx)…") { export(withText, .word, withTimes: false) }
+                Button("Word document with times…") { export(withText, .word, withTimes: true) }
+                Divider()
+                Button("Text file (.txt)…") { export(withText, .text, withTimes: false) }
+                Button("Text file with times…") { export(withText, .text, withTimes: true) }
+            } label: {
+                Label("Export", systemImage: "square.and.arrow.down")
+            }
+            .fixedSize()
+            .help("One Word document with all of them, oldest first, each on its own page with its title and date. Opens in Word, Pages and Google Docs.")
+            Button {
+                writing = true
+            } label: {
+                Label("AI", systemImage: "sparkles")
+            }
+            .help("Summarize all of them together, or rewrite each one cleanly (spelling, order and formatting, every detail kept), in English or Arabic")
+            .sheet(isPresented: $writing) {
+                AIWriterSheet(source: AISource(title: "\(withText.count) \(noun)", sessions: withText))
+                    .environmentObject(ai)
+                    .environmentObject(settings)
+                    .environmentObject(router)
+            }
+            Spacer()
+        }
+        .disabled(withText.isEmpty)
+        if withText.count < chosen.count {
+            Text("\(chosen.count - withText.count) of them have no text yet and are left out of Copy, Export and AI.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func copy(_ sessions: [Session], withTimes: Bool) {
+        TextInjector.copy(TranscriptExport.plainText(sessions, withTimes: withTimes))
+        copied = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_300_000_000)
+            copied = false
+        }
+    }
+
+    private func export(_ chosen: [Session], _ format: TranscriptExport.Format, withTimes: Bool) {
+        do {
+            if let url = try TranscriptExport.save(chosen, format: format, withTimes: withTimes) {
+                notice = "Saved \(url.lastPathComponent) in \(url.deletingLastPathComponent().lastPathComponent)."
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            }
+        } catch {
+            notice = "Could not save it: \(error.localizedDescription)"
+            ProblemLog.shared.report("Export", "Could not save \(chosen.count) transcripts: \(error.localizedDescription)")
         }
     }
 

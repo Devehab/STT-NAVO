@@ -118,9 +118,40 @@ enum WritingAction: String, CaseIterable, Identifiable {
         self == .tidy ? 3_000 : 5_000
     }
 
-    /// With `fromNotes`, the text is notes taken part by part from a long transcript.
-    func instructions(language: OutputLanguage, fromNotes: Bool = false) -> String {
-        [fromNotes ? Self.notesSource : Self.source, task(language: language), Self.rules].joined(separator: "\n\n")
+    /// With `fromNotes`, the text is notes taken part by part from a long transcript. With
+    /// `several` above 1, it is that many transcripts (or their notes), oldest first.
+    func instructions(language: OutputLanguage, fromNotes: Bool = false, several: Int = 0) -> String {
+        let source: String
+        if several > 1 {
+            source = fromNotes ? Self.severalNotesSource(several) : Self.severalSource(several)
+        } else {
+            source = fromNotes ? Self.notesSource : Self.source
+        }
+        return [source, task(language: language), Self.rules].joined(separator: "\n\n")
+    }
+
+    private static func severalSource(_ count: Int) -> String {
+        """
+        You receive \(count) transcripts of speech, in the order they were recorded, oldest first: \
+        meetings, dictations or voice notes. Each one starts with its title and when it was \
+        recorded. They were made by speech recognition, so they may contain misheard words, \
+        repetitions and filler words, and they may mix Arabic (often a spoken dialect) with English. \
+        Treat them as one body of work: bring together what they say, say which one something comes \
+        from when that matters (by its title or date), and when a later one changes something \
+        decided in an earlier one, go by the later one and say so. "The transcript" below means all \
+        of them together.
+        """
+    }
+
+    private static func severalNotesSource(_ count: Int) -> String {
+        """
+        You receive notes taken from \(count) transcripts of speech, in the order they were \
+        recorded, oldest first. The notes of each one start with its title and when it was \
+        recorded. They may mix Arabic with English. Work from what the notes say, as if you had the \
+        whole transcripts: bring them together, say which one something comes from when that \
+        matters, and when a later one changes an earlier decision, go by the later one and say so. \
+        "The transcript" below means all of them together.
+        """
     }
 
     /// For one part of a long transcript: the notes the final answer is written from.

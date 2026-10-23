@@ -281,6 +281,9 @@ class Gateway:
             "model_path": last.get("model_path"),
             "model_bytes": last.get("model_bytes"),
             "context_tokens": self.args.llm_context,
+            # Known once the model has loaded: the most it was made for, and so one request's room.
+            "model_context_tokens": last.get("model_context_tokens"),
+            "window_tokens": last.get("window_tokens") or self.args.llm_context,
             "memory_limit_bytes": MEMORY_LIMIT_BYTES,
             "peak_memory_bytes": last.get("peak_memory_bytes"),
             "requests": last.get("requests", 0),

@@ -1,5 +1,11 @@
 import Foundation
 
+/// One recording or file in a request about several: its title and date line, and its text.
+struct AIDocument: Sendable, Equatable {
+    let heading: String
+    let text: String
+}
+
 /// An answer, and what wrote it.
 struct AIAnswer {
     let text: String
@@ -91,22 +97,26 @@ final class AIWriter: ObservableObject {
     /// Makes `action` from `text`. A text longer than the model reads at once is read in parts
     /// first. `fresh` writes again instead of reusing the last answer; `onStatus` hears what is
     /// going on, `onText` the answer so far while it is written.
+    /// With `documents` (several recordings or files, oldest first), `text` is all of them and
+    /// the model reads them as separate transcripts.
     func run(
         _ action: WritingAction,
         on text: String,
+        documents: [AIDocument] = [],
         language: OutputLanguage,
         fresh: Bool = false,
         onStatus: (@MainActor @Sendable (String) -> Void)? = nil,
         onText: (@MainActor @Sendable (String) -> Void)? = nil
     ) async throws -> AIAnswer {
         try await logged(action.title) {
-            try await write(action, on: text, language: language, fresh: fresh, onStatus: onStatus, onText: onText)
+            try await write(action, on: text, documents: documents, language: language, fresh: fresh, onStatus: onStatus, onText: onText)
         }
     }
 
     private func write(
         _ action: WritingAction,
         on text: String,
+        documents: [AIDocument],
         language: OutputLanguage,
         fresh: Bool,
         onStatus: (@MainActor @Sendable (String) -> Void)?,
@@ -130,7 +140,11 @@ final class AIWriter: ObservableObject {
         var partCount = 1
         while true {
             do {
-                (written, partCount) = try await write(action, text: text, language: language, model: model, limit: limit, onStatus: onStatus, onText: onText)
+                if documents.count > 1 {
+                    (written, partCount) = try await writeSeveral(action, documents: documents, language: language, model: model, limit: limit, onStatus: onStatus, onText: onText)
+                } else {
+                    (written, partCount) = try await write(action, text: text, language: language, model: model, limit: limit, onStatus: onStatus, onText: onText)
+                }
                 break
             } catch let failure as WritingClient.Failure where failure.tooLong && limit > 800 {
                 // Text that takes more tokens than usual (rare scripts, long codes): smaller parts.
@@ -142,11 +156,14 @@ final class AIWriter: ObservableObject {
                 )
             }
         }
-        if partCount > 1 {
+        if documents.count > 1 {
+            notes.append("\(documents.count) transcripts, oldest first\(partCount > 1 ? ": \(model.shortName) took \(partCount) requests" : "").")
+        } else if partCount > 1 {
             notes.append("A long text: \(model.shortName) read it in \(partCount) parts.")
         }
+        let several = documents.count > 1 ? ", \(documents.count) transcripts" : ""
         record(written, model: model, kind: .writing, started: started,
-               detail: action.title + (partCount > 1 ? ", read in \(partCount) parts" : ""))
+               detail: action.title + several + (partCount > 1 ? ", \(partCount) requests" : ""))
         var result = written.text
         if written.finishReason == "length" {
             result += "\n\n(The answer was cut off here: it reached its length limit.)"
@@ -240,6 +257,177 @@ final class AIWriter: ObservableObject {
         whole.merge(answer)
         whole.text = answer.text
         return (whole, parts.count)
+    }
+
+    /// Several transcripts, oldest first. All of them in one request when they fit; otherwise
+    /// notes of each one (part by part when it is long), headed by its title and date, then the
+    /// answer from the notes. A clean rewrite keeps each one apart: its heading, then its text
+    /// rewritten part by part. Returns the answer and how many requests it took.
+    private func writeSeveral(
+        _ action: WritingAction,
+        documents: [AIDocument],
+        language: OutputLanguage,
+        model: WritingModel,
+        limit: Int,
+        onStatus: (@MainActor @Sendable (String) -> Void)?,
+        onText: (@MainActor @Sendable (String) -> Void)?
+    ) async throws -> (WritingClient.Answer, Int) {
+        let client = client(model)
+        var spent: WritingClient.Answer?
+        var requests = 0
+        func count(_ answer: WritingClient.Answer) {
+            requests += 1
+            if spent == nil { spent = answer } else { spent?.merge(answer) }
+        }
+
+        if action == .tidy {
+            var written = ""
+            for (index, document) in documents.enumerated() {
+                let parts = TextParts.split(document.text, limit: limit)
+                var body = ""
+                for (partIndex, part) in parts.enumerated() {
+                    onStatus?("Rewriting \(index + 1) of \(documents.count)" + (parts.count > 1 ? ", part \(partIndex + 1) of \(parts.count)" : "") + "…")
+                    let before = (written.isEmpty ? "" : written + "\n\n\n") + document.heading + "\n\n" + (body.isEmpty ? "" : body + "\n\n")
+                    let piece = try await client.write(
+                        system: action.instructions(language: language),
+                        user: part,
+                        temperature: action.temperature,
+                        maxTokens: action.maxTokens
+                    ) { soFar in
+                        onText?(before + soFar)
+                    }
+                    body += (body.isEmpty ? "" : "\n\n") + piece.text
+                    count(piece)
+                }
+                written += (written.isEmpty ? "" : "\n\n\n") + document.heading + "\n\n" + body
+            }
+            var whole = spent ?? WritingClient.Answer(text: "")
+            whole.text = written
+            return (whole, requests)
+        }
+
+        let joined = documents.map { "\($0.heading)\n\n\($0.text)" }.joined(separator: "\n\n\n")
+        if joined.count <= limit {
+            let answer = try await client.write(
+                system: action.instructions(language: language, several: documents.count),
+                user: joined,
+                temperature: action.temperature,
+                maxTokens: action.maxTokens,
+                onText: onText
+            )
+            return (answer, 1)
+        }
+
+        // Notes of each one, so none is lost among the others, each headed by its title and date.
+        var notes: [String] = []
+        for (index, document) in documents.enumerated() {
+            let parts = TextParts.split(document.text, limit: max(400, limit - document.heading.count - 2))
+            var taken: [String] = []
+            for (partIndex, part) in parts.enumerated() {
+                onStatus?("Reading \(index + 1) of \(documents.count)" + (parts.count > 1 ? ", part \(partIndex + 1) of \(parts.count)" : "") + "…")
+                let answer = try await client.write(
+                    system: WritingAction.notesInstructions,
+                    user: document.heading + "\n\n" + part,
+                    temperature: 0.2,
+                    maxTokens: 500
+                )
+                taken.append(answer.text)
+                count(answer)
+            }
+            notes.append(document.heading + "\n" + taken.joined(separator: "\n"))
+        }
+
+        // Notes of the notes while they are still too long to read at once.
+        var material = TextParts.split(notes.joined(separator: "\n\n"), limit: limit)
+        var round = 1
+        while material.count > 1 {
+            var shorter: [String] = []
+            for (index, part) in material.enumerated() {
+                onStatus?("Putting the notes together, \(index + 1) of \(material.count)…")
+                let answer = try await client.write(
+                    system: WritingAction.notesInstructions,
+                    user: part,
+                    temperature: 0.2,
+                    maxTokens: 500
+                )
+                shorter.append(answer.text)
+                count(answer)
+            }
+            let joinedNotes = shorter.joined(separator: "\n")
+            let next = TextParts.split(joinedNotes, limit: limit)
+            material = next.count < material.count ? next : [String(joinedNotes.prefix(limit))]
+            round += 1
+        }
+        onStatus?("Writing the \(action.title.lowercased()) of all \(documents.count)…")
+        let answer = try await client.write(
+            system: action.instructions(language: language, fromNotes: true, several: documents.count),
+            user: material.first ?? "",
+            temperature: action.temperature,
+            maxTokens: action.maxTokens,
+            onText: onText
+        )
+        count(answer)
+        var whole = spent ?? answer
+        whole.text = answer.text
+        whole.finishReason = answer.finishReason
+        return (whole, requests)
+    }
+
+    // MARK: Size
+
+    /// What a request will take, worked out before it is sent: the text's tokens (estimated from
+    /// how many characters this model fits in a token, measured on your own answers when there
+    /// are some), the room one request has, and so how many requests it takes.
+    struct Plan: Equatable {
+        let tokens: Int
+        let window: Int
+        let requests: Int
+        /// Rough, from this model's measured speed.
+        let seconds: Double
+        let modelName: String
+
+        var fitsAtOnce: Bool { requests == 1 }
+    }
+
+    func plan(_ action: WritingAction, text: String, documents: [AIDocument], isArabic: Bool) -> Plan {
+        let model = readyModel ?? settings.writingModel
+        let measured = metrics?.writingSummaries.first { $0.model == model.rawValue }
+        let window = engine.llms[model]?.windowTokens ?? measured?.contextTokens ?? 6_144
+        let perToken = measured?.charsPerToken ?? (isArabic ? 3.0 : 4.2)
+        let tokens = Int((Double(text.count) / max(1, perToken)).rounded())
+        let limit = action.partLimit
+
+        // The same cuts the writer makes.
+        var notesRequests = 0
+        var finalRequests = 1
+        if action == .tidy {
+            let texts = documents.count > 1 ? documents.map(\.text) : [text]
+            finalRequests = texts.reduce(0) { $0 + max(1, TextParts.split($1, limit: limit).count) }
+        } else if documents.count > 1 {
+            let joinedCount = documents.reduce(0) { $0 + $1.heading.count + $1.text.count + 3 }
+            if joinedCount > limit {
+                notesRequests = documents.reduce(0) { $0 + max(1, TextParts.split($1.text, limit: max(400, limit - $1.heading.count - 2)).count) }
+            }
+        } else {
+            let parts = TextParts.split(text, limit: limit).count
+            if parts > 1 { notesRequests = parts }
+        }
+        // Notes are about 1,500 characters a part: more than a request holds means another round.
+        if notesRequests > 0 {
+            let notesChars = notesRequests * 1_500
+            if notesChars > limit { notesRequests += Int((Double(notesChars) / Double(limit)).rounded(.up)) }
+        }
+        let speed = measured?.tokensPerSecond ?? 25
+        let readSpeed = 400.0 // tokens of prompt a second, roughly, on Apple silicon
+        let notesSeconds = Double(notesRequests) * (Double(limit) / perToken / readSpeed + 250 / speed)
+        let finalSeconds = Double(finalRequests) * (Double(min(tokens, Int(Double(limit) / perToken))) / readSpeed + Double(action.maxTokens) * 0.5 / speed)
+        return Plan(
+            tokens: tokens,
+            window: window,
+            requests: notesRequests + finalRequests,
+            seconds: notesSeconds + finalSeconds,
+            modelName: model.shortName
+        )
     }
 
     // MARK: Engine

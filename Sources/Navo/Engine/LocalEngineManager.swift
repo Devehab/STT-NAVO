@@ -87,6 +87,10 @@ final class LocalEngineManager: ObservableObject {
         /// The most memory MLX has used for it this session, weights included.
         var peakMemoryBytes: Int64?
         var tokensPerSecond: Double?
+        /// Tokens one request can hold, prompt and answer (Navo's limit, or the model's own if smaller).
+        var windowTokens: Int?
+        /// The longest context the model was made for, once it has loaded.
+        var modelContextTokens: Int?
 
         var inMemory: Bool { status == "ready" || status == "writing" || status == "loading" }
 
@@ -111,6 +115,9 @@ final class LocalEngineManager: ObservableObject {
             let modelBytes: Int64?
             let peakMemoryBytes: Int64?
             let lastTokensPerSecond: Double?
+            let contextTokens: Int?
+            let windowTokens: Int?
+            let modelContextTokens: Int?
         }
 
         struct LLM: Decodable {
@@ -582,7 +589,9 @@ final class LocalEngineManager: ObservableObject {
                 error: entry.error,
                 modelBytes: entry.modelBytes,
                 peakMemoryBytes: entry.peakMemoryBytes,
-                tokensPerSecond: entry.lastTokensPerSecond
+                tokensPerSecond: entry.lastTokensPerSecond,
+                windowTokens: entry.windowTokens ?? entry.contextTokens,
+                modelContextTokens: entry.modelContextTokens
             )
         }
         if writers != llms { llms = writers }

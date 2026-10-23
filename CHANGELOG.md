@@ -3,6 +3,13 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.21.0
+
+- **Copy several at once.** With several recordings or files selected, Copy puts all their texts on the clipboard, oldest first, each with its title, when it was recorded, its length, engine and language, then its text. Copy with times adds the time of each paragraph.
+- **One Word document with all of them.** Export saves a .docx (Downloads by default) that opens in Word, Pages and Google Docs: a list of what is in it, then each one on its own page with its title and date. Arabic is right to left. Also as a text file, with or without times, and Export as Word for a single recording.
+- **AI on several at once.** The AI button reads all of them together, oldest first, each with its title and date: a summary or a detailed summary of all of them (a later meeting's decision wins over an earlier one), an email or a message, or a clean rewrite that keeps each one apart, spelling and order fixed and every detail kept.
+- **The AI checks the size first.** Before anything is sent, the panel shows how many tokens the text is, how much the model holds at a time, and how many requests it takes, with the time when it is long. Nothing ever goes past the model's context window: when it does not fit, each recording is read on its own and the answer is written from the notes, so it never hangs.
+
 ## 0.20.0
 
 - **A notification when transcriptions are done.** Pick in Settings > Notetaker and Transcribe: when everything in line is done (one notification, even for ten files, with how many worked), for each one as it finishes (the last one says how all of them went), or never. Clicking it opens the recording or file, even while another meeting is being recorded. macOS asks once whether Navo may show them, when the first transcription starts; Send a test shows how one looks. macOS keeps them off the screen while you share it.

@@ -5,14 +5,34 @@ import SwiftUI
 struct AISource {
     let title: String
     let text: String
+    /// Several recordings or files, oldest first: the model reads them as separate transcripts.
+    let documents: [AIDocument]
     let wordCount: Int
     let isArabic: Bool
 
     init(title: String, text: String) {
         self.title = title
         self.text = text
+        documents = []
         wordCount = TextTools.wordCount(text)
         isArabic = TextTools.isRightToLeft(String(text.prefix(4_000)))
+    }
+
+    /// Several recordings or files, each headed by its title and when it was recorded.
+    @MainActor
+    init(title: String, sessions: [Session]) {
+        let chosen = TranscriptExport.ordered(sessions)
+        let documents = chosen.map { session in
+            AIDocument(
+                heading: "\(session.title) (\(session.kind == .meeting ? "recorded" : "added") \(session.createdAt.formatted(date: .abbreviated, time: .shortened)))",
+                text: session.transcript
+            )
+        }
+        self.title = title
+        self.documents = documents
+        text = documents.map { "\($0.heading)\n\n\($0.text)" }.joined(separator: "\n\n\n")
+        wordCount = documents.reduce(0) { $0 + TextTools.wordCount($1.text) }
+        isArabic = TextTools.isRightToLeft(String(documents.map(\.text).joined(separator: " ").prefix(4_000)))
     }
 }
 
@@ -96,6 +116,9 @@ private struct AIWriterPanel: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if modelReady {
+                    sizeLine
+                }
             }
             Spacer()
             Picker("Model", selection: $settings.writingModel) {
@@ -110,6 +133,25 @@ private struct AIWriterPanel: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
+    }
+
+    /// Before anything is sent: how big the text is for this model, the room one request has,
+    /// and so how many requests it takes. Nothing ever goes past the room: a longer text is read
+    /// in parts.
+    private var sizeLine: some View {
+        let plan = ai.plan(action ?? .summary, text: source.text, documents: source.documents, isArabic: source.isArabic)
+        let minutes = plan.seconds >= 90 ? ", about \(Int((plan.seconds / 60).rounded())) minutes" : ""
+        let line: String
+        if plan.fitsAtOnce {
+            line = "About \(plan.tokens.formatted()) tokens: fits in one request (\(plan.modelName) holds \(plan.window.formatted()) at a time here)\(minutes)."
+        } else {
+            line = "About \(plan.tokens.formatted()) tokens, more than one request holds (\(plan.window.formatted())): \(plan.modelName) reads it in parts, \(plan.requests) requests\(minutes)."
+        }
+        return Text(line)
+            .font(.caption)
+            .foregroundStyle(plan.requests > 30 ? Color.orange : Color.secondary)
+            .lineLimit(2)
+            .help("Tokens are estimated from how many characters \(plan.modelName) fits in a token (measured on your own answers when there are some). Each request stays inside the model's context window, so it never overflows or hangs: a long text is read part by part, notes are taken, and the answer is written from the notes. Stop at any time.")
     }
 
     private var choices: some View {
@@ -397,12 +439,14 @@ private struct AIWriterPanel: View {
         copied = false
         working = true
         let text = source.text
+        let documents = source.documents
         let writer = ai
         job = Task { @MainActor in
             do {
                 let answer = try await writer.run(
                     chosen,
                     on: text,
+                    documents: documents,
                     language: chosenLanguage,
                     fresh: fresh,
                     onStatus: { message in
