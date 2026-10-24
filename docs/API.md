@@ -281,7 +281,7 @@ The engine as a whole. Each speech engine is in `engines` (same objects as `GET 
 Navo starts the engine when the app launches and stops it when you quit Navo. To use the API without the app, start the engine yourself:
 
 ```bash
-ENGINE_SRC="$HOME/Applications/Navo.app/Contents/Resources/engine"
+ENGINE_SRC="/Applications/Navo.app/Contents/Resources/engine"
 ENGINE_HOME="$HOME/Library/Application Support/Navo/engine"
 PYTHONPATH="$ENGINE_SRC" HF_HUB_OFFLINE=1 \
   "$ENGINE_HOME/venv/bin/python" -m navo_engine --port 7861 --engines whisper,audar --idle-minutes 10

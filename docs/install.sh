@@ -54,6 +54,25 @@ rm -rf "$DEST"
 ditto "$MOUNT/Navo.app" "$DEST"
 xattr -dr com.apple.quarantine "$DEST" 2>/dev/null || true
 
+# macOS keeps a note of every Navo it has seen, also on installer disks that are gone (opening
+# Navo.dmg in Finder leaves one). Several notes for one app can keep Spotlight from finding it, so
+# the ones whose files are gone are dropped, and the installed copy is the one macOS knows.
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
+if [ -x "$LSREGISTER" ]; then
+  "$LSREGISTER" -u "$MOUNT/Navo.app" >/dev/null 2>&1 || true
+  "$LSREGISTER" -dump 2>/dev/null \
+    | awk '/^path:/ { p = $0; sub(/^path: +/, "", p); sub(/ \(0x[0-9a-f]+\)$/, "", p) }
+           /^identifier: +com\.ehab-kahwati\.navo$/ { print p }' \
+    | sort -u | while IFS= read -r gone; do
+        if [ -n "$gone" ] && [ "$gone" != "$MOUNT/Navo.app" ] && [ ! -e "$gone" ]; then
+          "$LSREGISTER" -u "$gone" >/dev/null 2>&1 || true
+          "$LSREGISTER" -u "$gone" >/dev/null 2>&1 || true
+        fi
+      done
+  "$LSREGISTER" -f "$DEST" >/dev/null 2>&1 || true
+fi
+mdimport "$DEST" >/dev/null 2>&1 || true
+
 say "Opening Navo"
 open "$DEST"
 printf '\nNavo is in %s and it is open now.\nIts window shows three steps: download the engine, allow the microphone, allow Accessibility.\n' "$DEST_DIR"

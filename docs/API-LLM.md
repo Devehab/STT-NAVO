@@ -82,7 +82,7 @@ The numbers are measured, not promised: every response carries `navo.peak_memory
 The model must be **downloaded**: in Navo > Settings > AI writing, click **Download** next to it, or from a terminal:
 
 ```bash
-ENGINE_SRC="$HOME/Applications/Navo.app/Contents/Resources/engine"
+ENGINE_SRC="/Applications/Navo.app/Contents/Resources/engine"
 ENGINE_HOME="$HOME/Library/Application Support/Navo/engine"
 PYTHONPATH="$ENGINE_SRC" "$ENGINE_HOME/venv/bin/python" -m navo_engine.download --model mlx-community/gemma-4-e4b-it-4bit
 ```

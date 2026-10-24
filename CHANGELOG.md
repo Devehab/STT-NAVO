@@ -3,6 +3,11 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.21.1
+
+- **Spotlight finds Navo again.** Typing "Navo" in Spotlight could find nothing while the app was in the list of all apps: macOS still had notes of Navo copies that were gone (an installer disk opened in Finder, an older copy in another folder), and Spotlight looked for one of those. The installer now drops every note whose files are gone and registers the installed copy, so the next update fixes it on any Mac.
+- **One Navo per Mac.** Building from source (scripts/run.sh) now installs into Applications, like the installer, and removes the copy an earlier build left in your home folder's Applications.
+
 ## 0.21.0
 
 - **Copy several at once.** With several recordings or files selected, Copy puts all their texts on the clipboard, oldest first, each with its title, when it was recorded, its length, engine and language, then its text. Copy with times adds the time of each paragraph.

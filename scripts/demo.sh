@@ -10,7 +10,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP="$HOME/Applications/Navo.app"
+APP="/Applications/Navo.app"
+if [ ! -d "$APP" ]; then
+  APP="$HOME/Applications/Navo.app"
+fi
 if [ ! -d "$APP" ]; then
   APP="$ROOT/build/Navo.app"
 fi

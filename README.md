@@ -145,7 +145,7 @@ To update, run the line again, or drag the new version into Applications and rep
 ./scripts/run.sh
 ```
 
-`run.sh` builds `Navo.app`, installs it to `~/Applications`, installs the local engine on the first run (uv, Python 3.12, MLX, PyTorch, the speech model and the cleanup model), and launches Navo. On the first run it asks for your Hugging Face token once (or put `HF_TOKEN=...` in a `.env` file, see `.env.example`). Then:
+`run.sh` builds `Navo.app`, installs it to `/Applications` (replacing a copy an earlier run left in `~/Applications`), installs the local engine on the first run (uv, Python 3.12, MLX, PyTorch, the speech model and the cleanup model), and launches Navo. On the first run it asks for your Hugging Face token once (or put `HF_TOKEN=...` in a `.env` file, see `.env.example`). Then:
 
 1. Allow **Microphone** and **Accessibility** when Navo asks (Settings shows both).
 2. Wait for the sidebar to say **Local engine: Ready**.
