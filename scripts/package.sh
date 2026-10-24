@@ -154,6 +154,11 @@ fi
 
 (cd "$DIST" && shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256")
 
+# The build copy is not an installed Navo: macOS registered it after the build, so it is
+# forgotten now, and Spotlight and Open With only know the one in Applications.
+/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
+  -u "$ROOT/build/Navo.app" >/dev/null 2>&1 || true
+
 echo "==> Made $DMG ($(du -h "$DMG" | cut -f1))"
 echo "    SHA-256: $(cut -d' ' -f1 < "$DMG.sha256")"
 if [ "$NOTARIZE" = 1 ]; then
