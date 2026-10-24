@@ -161,6 +161,10 @@ build() {
       ;;
   esac
   codesign --verify --verbose=1 "$APP"
+  # The build copy is not an installed Navo: macOS forgets it, so Spotlight and Open With only
+  # ever know the one in Applications.
+  /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
+    -u "$APP" >/dev/null 2>&1 || true
   echo "==> Built $APP"
 }
 
