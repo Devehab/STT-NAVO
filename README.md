@@ -38,6 +38,21 @@ Navo is an open source voice keyboard for macOS in the spirit of Wispr Flow. Hol
 | **Light on memory** | Models load when you talk and leave after the idle time you choose |
 | **Private** | No cloud, no account, no tracking. The engine listens on 127.0.0.1 only |
 
+## What's new in 0.21
+
+<p align="center">
+  <img src="docs/shots/notetaker-live.jpg" width="49%" alt="Notetaker while a meeting is recorded: the text appears paragraph by paragraph, each with its time, and the sentence being said in grey">
+  <img src="docs/shots/select-several.jpg" width="49%" alt="Four files selected in Transcribe, with Transcribe again, Copy, Export and AI for all of them">
+</p>
+
+- **Live text you can trust.** Notetaker and Transcribe write as people speak, then listen to every 20 seconds again as a whole, so the live text is as accurate as a transcription afterwards. Your other meetings stay open while one records.
+- **Select several, redo them with another engine.** Command-click recordings or files and transcribe them again with any engine and language, one after the other, with Stop all.
+- **One Word file with all of them.** Copy or export the texts you select, oldest first, each with its title and date. Arabic stays right to left.
+- **AI that reads several meetings.** Summaries and clean rewrites of several at once, sized to the model's context window so it never stalls, also with the models you already have in LM Studio.
+- **Measured and quiet.** A Performance page (speed, first word, tokens in and out), a problems log, notifications when transcriptions are done, and an emoji of your choice instead of the recording dot in the menu bar.
+
+Every change is in [CHANGELOG.md](CHANGELOG.md).
+
 ## Why Navo
 
 The dictation built into your Mac and your iPhone is free and handy for a short sentence in a quiet room. Real speech is messier: a café, a car, a dialect, an accent, an English word in the middle of an Arabic sentence. That is where one general recognizer, made for everyone, slips. Navo runs recent speech models built for exactly this, and you pick the one that fits the way you speak.

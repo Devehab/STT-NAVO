@@ -2006,6 +2006,40 @@ pre .c {
 .more.news {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+/* Screenshots of what is new */
+.news-shots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-block-end: 22px;
+}
+.news-shots figure {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.news-shots img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+.news-shots figcaption {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+:root[lang="ar"] .news-shots figcaption {
+  line-height: 1.8;
+}
+@media (max-width: 760px) {
+  .news-shots {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 @media (max-width: 860px) {
   .more.news {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2117,18 +2151,29 @@ pre .c {
   <section class="section band news-band" id="new" aria-labelledby="new-title">
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow"><span class="ver" dir="ltr">v<span data-version>0.13.0</span></span> <span data-i18n="new.date">October 2026</span></p>
+        <p class="eyebrow"><span class="ver" dir="ltr">v<span data-version>0.21.1</span></span> <span data-i18n="new.date">October 2026</span></p>
         <h2 id="new-title" data-i18n="new.title">What is new in this version</h2>
+        <p data-i18n="new.lead">A big month: meeting text you can trust while it is written, and one Word file with all your meetings.</p>
+      </div>
+      <div class="news-shots">
+        <figure>
+          <img src="shots/notetaker-live.jpg" width="1600" height="1087" loading="lazy" decoding="async" alt="The Notetaker window while a meeting is recorded: its text appears paragraph by paragraph, each with its time, and the sentence being said shows in grey" data-i18n-alt="shot1.alt">
+          <figcaption data-i18n="shot1.cap">Notetaker writes a meeting as people speak, and keeps recording while you open your other meetings.</figcaption>
+        </figure>
+        <figure>
+          <img src="shots/select-several.jpg" width="1600" height="1087" loading="lazy" decoding="async" alt="Four files selected in Transcribe, with Transcribe again, Copy, Export and AI for all of them" data-i18n-alt="shot2.alt">
+          <figcaption data-i18n="shot2.cap">Select several recordings or files: transcribe them again with another engine, copy them, export one Word file, or ask the AI about all of them.</figcaption>
+        </figure>
       </div>
       <div class="more news">
-        <article><svg class="ico" aria-hidden="true"><use href="#i-mic"/></svg><h4 data-i18n="n1.t">See the words while you talk</h4><p data-i18n="n1.p">A small card above the Flow Bar shows what you say as you say it. Long dictations are written as you go, so they are in almost as soon as you let go.</p></article>
-        <article><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><h4 data-i18n="n2.t">Set up in three clicks</h4><p data-i18n="n2.p">A welcome screen walks you through it: download the engine, allow the microphone, allow Accessibility.</p></article>
-        <article><svg class="ico" aria-hidden="true"><use href="#i-key"/></svg><h4 data-i18n="n3.t">No account, no developer tools</h4><p data-i18n="n3.p">The first setup needs no Hugging Face token, and macOS no longer asks to install Xcode tools.</p></article>
-        <article><svg class="ico" aria-hidden="true"><use href="#i-term"/></svg><h4 data-i18n="n4.t">Install with one line</h4><p data-i18n="n4.p">Paste one line in Terminal and Navo downloads, installs and opens, with no warning from macOS.</p></article>
-        <article><svg class="ico" aria-hidden="true"><use href="#i-moon"/></svg><h4 data-i18n="n5.t">Hide the Flow Bar</h4><p data-i18n="n5.p">For 10 minutes up to 2 hours, or keep it out of sight and see it only while you dictate.</p></article>
-        <article><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg><h4 data-i18n="n6.t">Free space in one click</h4><p data-i18n="n6.p">Delete any model you no longer use, with a confirmation that says how much space comes back.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-rec"/></svg><h4 data-i18n="n1.t">Live text you can trust</h4><p data-i18n="n1.p">Notetaker and Transcribe write as people speak, then listen to every 20 seconds again as a whole, so the live text is as accurate as a transcription afterwards.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-retry"/></svg><h4 data-i18n="n2.t">Redo several with another engine</h4><p data-i18n="n2.p">Select recordings or files with a Command-click and transcribe them again with any engine and language. They run one after the other, and Stop all ends them.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><h4 data-i18n="n3.t">One Word file with all of them</h4><p data-i18n="n3.p">Copy or export the texts you select, oldest first, each with its title and date, ready for Word, Pages or Google Docs. Arabic stays right to left.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg><h4 data-i18n="n4.t">AI that reads several meetings</h4><p data-i18n="n4.p">Summarize or rewrite several at once. Navo checks the model's context window first and reads a long text in parts, so it never stalls. Use the models you already have in LM Studio.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-pie"/></svg><h4 data-i18n="n5.t">See how fast each model is</h4><p data-i18n="n5.p">A Performance page with the speed, the time to the first word, tokens in and out, and how well a model knows Arabic. Problems are logged, never in your way.</p></article>
+        <article><svg class="ico" aria-hidden="true"><use href="#i-quiet"/></svg><h4 data-i18n="n6.t">Quiet when you share your screen</h4><p data-i18n="n6.p">Hide Navo from screen sharing, get a notification when transcriptions are done, and pick an emoji instead of the recording dot in the menu bar.</p></article>
       </div>
-      <p class="note-line"><span data-i18n="new.names">Record is now called Notetaker, and Files is now Transcribe.</span> <a href="https://github.com/Devehab/STT-NAVO/blob/main/CHANGELOG.md" data-i18n="new.all">All changes</a></p>
+      <p class="note-line"><span data-i18n="new.also">Also new: AI and live text at the same time, your old meetings open while one records, keep talking while Navo writes, and select text across paragraphs.</span> <a href="https://github.com/Devehab/STT-NAVO/blob/main/CHANGELOG.md" data-i18n="new.all">All changes</a></p>
     </div>
   </section>
 
@@ -2619,7 +2664,7 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 9 10 13.5 14.5 9M4 17h12"/></svg>
           <span data-i18n="dl.cta">Download Navo for Mac</span>
         </a>
-        <p class="meta"><span data-i18n="dl.meta.a">DMG file</span> | <span data-i18n="dl.meta.v">Version</span> <span dir="ltr" data-version>0.13.0</span> | <span data-i18n="dl.meta.b">macOS 14 or later</span> | <span dir="ltr">Apple Silicon</span></p>
+        <p class="meta"><span data-i18n="dl.meta.a">DMG file</span> | <span data-i18n="dl.meta.v">Version</span> <span dir="ltr" data-version>0.21.1</span> | <span data-i18n="dl.meta.b">macOS 14 or later</span> | <span dir="ltr">Apple Silicon</span></p>
         <div class="open-guide" id="quick">
           <h3><span class="rec-tag" data-i18n="q.tag">Easiest</span> <span data-i18n="q.title">Install with one line</span></h3>
           <p data-i18n="q.p">Open <b>Terminal</b> (press <kbd>Command</kbd> <kbd>Space</kbd>, type Terminal, press Return), paste this line and press Return:</p>
@@ -2662,7 +2707,7 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
 
   // The three things to set when the page goes online.
   var NAVO = {
-    version: "0.13.0",
+    version: "0.21.1",
     // Where the download buttons point: the hosted .dmg, for example a GitHub release file.
     // `bash scripts/release.sh` uploads Navo.dmg to a new release, and this link always gives the newest one.
     download: "https://github.com/Devehab/STT-NAVO/releases/latest/download/Navo.dmg",
@@ -2750,19 +2795,24 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
 
     "new.date": "أكتوبر 2026",
     "new.title": "ما الجديد في هذا الإصدار",
-    "n1.t": "ترى كلامك وأنت تتكلم",
-    "n1.p": "بطاقة صغيرة فوق شريط Flow Bar تعرض ما تقوله لحظة قوله. والإملاء الطويل يُكتب أولاً بأول، فيصل تقريباً لحظة رفع إصبعك.",
-    "n2.t": "الإعداد بثلاث نقرات",
-    "n2.p": "شاشة ترحيب ترافقك خطوة خطوة: تنزيل المحرك، السماح بالميكروفون، السماح بـ Accessibility.",
-    "n3.t": "لا حساب ولا أدوات مطوّرين",
-    "n3.p": "الإعداد الأول لا يحتاج Token من Hugging Face، ولم يعد macOS يطلب تثبيت أدوات Xcode.",
-    "n4.t": "التثبيت بسطر واحد",
-    "n4.p": "الصق سطراً واحداً في Terminal، فيُنزَّل Navo ويُثبَّت ويفتح، دون أي تحذير من macOS.",
-    "n5.t": "إخفاء شريط Flow Bar",
-    "n5.p": "من 10 دقائق إلى ساعتين، أو أبقه مخفياً ليظهر فقط أثناء الإملاء.",
-    "n6.t": "وفّر المساحة بنقرة",
-    "n6.p": "احذف أي نموذج لم تعد تستخدمه، مع تأكيد يخبرك كم مساحة ستعود.",
-    "new.names": "تبويب Record أصبح اسمه Notetaker، و Files أصبح Transcribe.",
+    "new.lead": "شهر حافل: نص للاجتماعات تثق به وهو يُكتب، وملف Word واحد فيه كل اجتماعاتك.",
+    "shot1.alt": "نافذة Notetaker أثناء تسجيل اجتماع: النص يظهر فقرة فقرة مع وقت كل فقرة، والجملة التي تُقال الآن باللون الرمادي",
+    "shot1.cap": "يكتب Notetaker الاجتماع وهم يتكلمون، ويستمر بالتسجيل وأنت تفتح اجتماعاتك السابقة.",
+    "shot2.alt": "أربعة ملفات محددة في Transcribe، مع إعادة النسخ والنسخ والتصدير والذكاء الاصطناعي لها كلها",
+    "shot2.cap": "حدّد عدة تسجيلات أو ملفات: أعد نسخها بمحرك آخر، أو انسخها، أو صدّرها في ملف Word واحد، أو اسأل الذكاء الاصطناعي عنها كلها.",
+    "n1.t": "نص مباشر تثق به",
+    "n1.p": "يكتب Notetaker و Transcribe الكلام لحظة قوله، ثم يعيدان الاستماع لكل 20 ثانية دفعة واحدة، فيصبح النص المباشر بدقة النسخ بعد الانتهاء.",
+    "n2.t": "أعد نسخ عدة ملفات بمحرك آخر",
+    "n2.p": "حدّد التسجيلات أو الملفات بالنقر مع Command، وأعد نسخها بأي محرك ولغة. تعمل واحداً بعد الآخر، وزر Stop all يوقفها كلها.",
+    "n3.t": "ملف Word واحد فيه كل شيء",
+    "n3.p": "انسخ أو صدّر نصوص ما تحدده، الأقدم أولاً، ولكل واحد عنوانه وتاريخه، جاهزاً لـ Word و Pages و Google Docs، والعربية من اليمين إلى اليسار.",
+    "n4.t": "ذكاء اصطناعي يقرأ عدة اجتماعات",
+    "n4.p": "لخّص أو أعد صياغة عدة اجتماعات معاً. يتحقق Navo أولاً من نافذة السياق للنموذج ويقرأ النص الطويل على أجزاء، فلا يعلق أبداً. واستخدم النماذج الموجودة عندك في LM Studio.",
+    "n5.t": "اعرف سرعة كل نموذج",
+    "n5.p": "صفحة أداء فيها السرعة، والوقت حتى أول كلمة، والتوكنز الداخلة والخارجة، ومدى معرفة النموذج بالعربية. والمشاكل تُسجَّل دون أن تعطّلك.",
+    "n6.t": "هادئ حين تشارك شاشتك",
+    "n6.p": "أخفِ Navo عن مشاركة الشاشة، واحصل على إشعار عند انتهاء النسخ، واختر إيموجي بدل نقطة التسجيل في شريط القوائم.",
+    "new.also": "وأيضاً: الذكاء الاصطناعي والنص المباشر في وقت واحد، واجتماعاتك القديمة مفتوحة أثناء التسجيل، وتابع كلامك بينما يكتب Navo، وحدّد النص عبر عدة فقرات.",
     "new.all": "كل التغييرات",
     "how.title": "ثلاث حركات، في أي تطبيق",
     "how.1.t": "اضغط",
