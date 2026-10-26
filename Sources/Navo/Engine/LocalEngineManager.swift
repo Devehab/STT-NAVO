@@ -491,6 +491,8 @@ final class LocalEngineManager: ObservableObject {
     private func engineEnvironment(source: URL) -> [String: String] {
         var environment = ProcessInfo.processInfo.environment
         environment["PYTHONPATH"] = source.path
+        // Compiled code goes to ~/Library/Caches/Navo, never into Navo.app (that breaks its signature).
+        environment["PYTHONPYCACHEPREFIX"] = Paths.pythonCache.path
         environment["PYTHONUNBUFFERED"] = "1"
         environment["HF_HUB_OFFLINE"] = "1"
         environment["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
@@ -830,6 +832,7 @@ final class LocalEngineManager: ObservableObject {
         resetInstallOutput(status: "Adding GGUF support")
         var environment = ProcessInfo.processInfo.environment
         environment["NAVO_SUPPORT_DIR"] = Paths.supportDir.path
+        environment["PYTHONPYCACHEPREFIX"] = Paths.pythonCache.path
         let status: Int32 = await withCheckedContinuation { continuation in
             runTool(
                 executable: URL(fileURLWithPath: "/bin/bash"),
@@ -1004,6 +1007,7 @@ final class LocalEngineManager: ObservableObject {
 
         var environment = ProcessInfo.processInfo.environment
         environment["NAVO_SUPPORT_DIR"] = Paths.supportDir.path
+        environment["PYTHONPYCACHEPREFIX"] = Paths.pythonCache.path
         environment["NAVO_ASR_MODELS"] = settings.enabledEngines.map { settings.model(for: $0) }.joined(separator: " ")
         if settings.cleanupMode == .local {
             environment["NAVO_LLM_MODEL"] = settings.cleanupModel

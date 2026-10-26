@@ -31,6 +31,9 @@ if [ "${NAVO_SKIP_LLM:-0}" = "1" ]; then LLM_MODEL=""; fi
 # GUI apps do not inherit the login shell PATH.
 export PATH="$HOME/.local/bin:$HOME/.homebrew/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export PYTHONUNBUFFERED=1
+# Compiled code goes to ~/Library/Caches/Navo, never next to the code inside Navo.app: a file
+# added there after signing breaks the app's signature.
+export PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-$HOME/Library/Caches/Navo/pycache}"
 # Navo brings its own Python and ready-made packages, so nothing here needs Apple's developer
 # tools. Looking at the Mac's own /usr/bin/python3 would make macOS offer to install them (Xcode
 # Command Line Tools) on a Mac that does not have them, so uv is told to use only the Python it

@@ -3,6 +3,10 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.22.1
+
+- **Navo.app stays exactly as installed.** Navo's engine runs Python code from inside the app, and Python saved its compiled copies next to that code, so the app changed after it was signed and macOS's signature check failed on it. The compiled copies now go to ~/Library/Caches/Navo, and the app's signature stays valid however long Navo runs.
+
 ## 0.22.0
 
 - **Navo in Control Center and the menu bar** (macOS 26). In Control Center > Edit Controls, search Navo and drag in the ones you want: Dictate (start, or stop and paste), Record meeting (on while recording), Dictation language (shows it, and switches between Arabic and English), Hide from screen sharing, Clipboard history (Quick Paste) and Flow Bar (always there, or only while you dictate). They work from the menu bar too. Navo stays in the background, so dictation still pastes into the app you were typing in, and a control opens Navo if it is not running.
