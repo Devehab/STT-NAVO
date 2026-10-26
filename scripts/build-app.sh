@@ -81,6 +81,8 @@ build_share_extension() {
 # without Control Center controls, or any failure here, only prints a warning. Besides the code,
 # macOS needs the App Intents metadata Xcode normally writes (Metadata.appintents), to find what
 # the control does: the compiler's constant values and appintentsmetadataprocessor make it here.
+# Starts through _NSExtensionMain like every extension Xcode builds (the @main WidgetBundle stays):
+# started from its own main, the extension quit at once and Control Center never listed its controls.
 build_controls_extension() {
   local sdk="$1" arch="$2"
   local src="$ROOT/Extensions/NavoControls"
@@ -101,6 +103,7 @@ build_controls_extension() {
       -sdk "$sdk" \
       -emit-const-values -emit-const-values-path "$work/NavoControls.swiftconstvalues" \
       -Xfrontend -const-gather-protocols-file -Xfrontend "$work/protocols.json" \
+      -Xlinker -e -Xlinker _NSExtensionMain \
       "$src/NavoControls.swift" \
       -o "$appex/Contents/MacOS/NavoControls"; then
     rm -rf "$appex"

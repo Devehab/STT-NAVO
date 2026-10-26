@@ -3,6 +3,10 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.22.2
+
+- **Navo's controls show up in Control Center.** In 0.22.0 and 0.22.1 the Navo controls were missing from Edit Controls: macOS started Navo's controls extension, and it quit at once, before it could say which controls it has. It now starts the way every extension built with Xcode does, and all six are there: Dictate, Record meeting, Language, Hide from screen sharing, Clipboard history and Flow Bar.
+
 ## 0.22.1
 
 - **Navo.app stays exactly as installed.** Navo's engine runs Python code from inside the app, and Python saved its compiled copies next to that code, so the app changed after it was signed and macOS's signature check failed on it. The compiled copies now go to ~/Library/Caches/Navo, and the app's signature stays valid however long Navo runs.
