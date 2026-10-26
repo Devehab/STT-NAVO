@@ -3,6 +3,10 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.22.0
+
+- **Navo in Control Center and the menu bar** (macOS 26). In Control Center > Edit Controls, search Navo and drag in the ones you want: Dictate (start, or stop and paste), Record meeting (on while recording), Dictation language (shows it, and switches between Arabic and English), Hide from screen sharing, Clipboard history (Quick Paste) and Flow Bar (always there, or only while you dictate). They work from the menu bar too. Navo stays in the background, so dictation still pastes into the app you were typing in, and a control opens Navo if it is not running.
+
 ## 0.21.1
 
 - **Spotlight finds Navo again.** Typing "Navo" in Spotlight could find nothing while the app was in the list of all apps: macOS still had notes of Navo copies that were gone (an installer disk opened in Finder, an older copy in another folder), and Spotlight looked for one of those. The installer now drops every note whose files are gone and registers the installed copy, so the next update fixes it on any Mac.

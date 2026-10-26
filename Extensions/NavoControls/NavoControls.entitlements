@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Control Center extensions must be sandboxed. A control posts a notification to Navo, or
+	     opens a navo:// link when Navo is not running. The only thing it reads is the small state
+	     file Navo writes for its toggles: recording or not, the language, private mode, the Flow
+	     Bar. No network, nothing else on disk. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
+	<array>
+		<string>/Library/Application Support/Navo/Controls/</string>
+	</array>
+</dict>
+</plist>

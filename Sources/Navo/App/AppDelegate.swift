@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var sessions: SessionStore!
     private var clipboard: ClipboardStore!
     private var quickPaste: QuickPasteController!
+    private var controls: ControlCenterLink!
     private var aiWriter: AIWriter!
     private var metrics: MetricsStore!
     private var activity: MenuBarActivity!
@@ -133,6 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         flowBar.show()
         watchAccessibility()
         registerShareExtension()
+        listenToControls()
         startRetention()
         clipboard.start()
         settings.$clipboardHistory
@@ -178,6 +180,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func handleOpen(_ urls: [URL]) {
+        // A Control Center control pressed while Navo was not running (navo://control/…): it is
+        // done in the background, so dictation goes to the app you were typing in.
+        let urls = urls.filter { !controls.handle($0) }
+        guard !urls.isEmpty else { return }
         let files = urls.filter(\.isFileURL)
         if urls.contains(where: { $0.scheme?.lowercased() == "navo" }) {
             sessions.importInbox()
@@ -203,6 +209,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hub.show(section: section)
     }
 
+    // MARK: Control Center
+
+    /// Navo's controls in Control Center and the menu bar (macOS 26): Dictate, Record meeting,
+    /// the dictation language, private mode, Quick Paste and the Flow Bar.
+    private func listenToControls() {
+        controls = ControlCenterLink(settings: settings, sessions: sessions, dictation: dictation, quickPaste: quickPaste)
+        controls.start()
+    }
+
     // MARK: Share menu
 
     /// Makes Share > Navo appear for people who installed Navo by dragging it to Applications
@@ -222,8 +237,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard defaults.string(forKey: "shareExtensionRegistered") != marker else { return }
         let firstTime = defaults.string(forKey: "shareExtensionRegistered") == nil
         defaults.set(marker, forKey: "shareExtensionRegistered")
+        // The Control Center controls too (macOS 26), from the same app.
+        let controls = bundle.builtInPlugInsURL?.appendingPathComponent("NavoControls.appex")
         Task.detached(priority: .utility) {
             AppDelegate.runPluginKit(["-a", appex.path])
+            if let controls, FileManager.default.fileExists(atPath: controls.path) {
+                AppDelegate.runPluginKit(["-a", controls.path])
+            }
             // Turned on once; if you turn it off later in System Settings, it stays off.
             if firstTime {
                 AppDelegate.runPluginKit(["-e", "use", "-i", "com.ehab-kahwati.navo.share"])

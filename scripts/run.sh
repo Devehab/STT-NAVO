@@ -20,7 +20,12 @@ mkdir -p "$DEST_DIR"
 if pgrep -x Navo >/dev/null 2>&1; then
   echo "==> Quitting the running Navo"
   osascript -e 'tell application id "com.ehab-kahwati.navo" to quit' >/dev/null 2>&1 || pkill -x Navo || true
-  sleep 1
+  # Navo saves and stops its engine first: wait for it, or the old one keeps running after the install.
+  for _ in $(seq 1 20); do
+    pgrep -x Navo >/dev/null 2>&1 || break
+    sleep 0.5
+  done
+  pkill -x Navo 2>/dev/null || true
 fi
 rm -rf "$DEST"
 ditto "$ROOT/build/Navo.app" "$DEST"
@@ -59,7 +64,13 @@ if [ -d "$APPEX" ]; then
   pluginkit -e use -i com.ehab-kahwati.navo.share >/dev/null 2>&1 || true
   echo "==> Share extension registered: Share > Navo in Voice Memos and Finder"
 fi
-# Once more for the build copy: registering the Share extension can bring it back.
+CONTROLS="$DEST/Contents/PlugIns/NavoControls.appex"
+if [ -d "$CONTROLS" ]; then
+  pluginkit -r "$ROOT/build/Navo.app/Contents/PlugIns/NavoControls.appex" >/dev/null 2>&1 || true
+  pluginkit -a "$CONTROLS" >/dev/null 2>&1 || true
+  echo "==> Control Center extension registered: Control Center > Edit Controls > Navo (macOS 26)"
+fi
+# Once more for the build copy: registering the extensions can bring it back.
 [ -x "$LSREGISTER" ] && "$LSREGISTER" -u "$ROOT/build/Navo.app" >/dev/null 2>&1 || true
 
 # macOS ties Accessibility, Microphone and System Audio approvals to the code signature. When the signature

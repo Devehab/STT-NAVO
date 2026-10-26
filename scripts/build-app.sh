@@ -77,6 +77,62 @@ build_share_extension() {
   cp "$ROOT/Resources/AppIcon.icns" "$appex/Contents/Resources/AppIcon.icns"
 }
 
+# "Navo" in Control Center and the menu bar (macOS 26): the Dictate control. Optional: an SDK
+# without Control Center controls, or any failure here, only prints a warning. Besides the code,
+# macOS needs the App Intents metadata Xcode normally writes (Metadata.appintents), to find what
+# the control does: the compiler's constant values and appintentsmetadataprocessor make it here.
+build_controls_extension() {
+  local sdk="$1" arch="$2"
+  local src="$ROOT/Extensions/NavoControls"
+  local appex="$APP/Contents/PlugIns/NavoControls.appex"
+  local work="$BUILD_DIR/NavoControls"
+  [ -d "$src" ] || return 0
+  echo "==> Control Center extension"
+  rm -rf "$appex" "$work"
+  mkdir -p "$appex/Contents/MacOS" "$appex/Contents/Resources" "$work"
+  printf '%s\n' '["AppIntent","EntityQuery","AppEntity","TransientEntity","AppEnum","AppShortcutProviding","AppShortcutsProvider","AnyResolverProviding","AppIntentsPackage","DynamicOptionsProvider"]' \
+    > "$work/protocols.json"
+  if ! swiftc -O -wmo \
+      -parse-as-library \
+      -swift-version 5 \
+      -application-extension \
+      -module-name NavoControls \
+      -target "$arch-apple-macos26.0" \
+      -sdk "$sdk" \
+      -emit-const-values -emit-const-values-path "$work/NavoControls.swiftconstvalues" \
+      -Xfrontend -const-gather-protocols-file -Xfrontend "$work/protocols.json" \
+      "$src/NavoControls.swift" \
+      -o "$appex/Contents/MacOS/NavoControls"; then
+    rm -rf "$appex"
+    return 1
+  fi
+  cp "$src/Info.plist" "$appex/Contents/Info.plist"
+  cp "$ROOT/Resources/AppIcon.icns" "$appex/Contents/Resources/AppIcon.icns"
+
+  printf '%s\n' "$src/NavoControls.swift" > "$work/sources.txt"
+  printf '%s\n' "$work/NavoControls.swiftconstvalues" > "$work/constvalues.txt"
+  local toolchain xcode
+  toolchain="$(dirname "$(dirname "$(dirname "$(xcrun --find swiftc)")")")"
+  xcode="$(xcodebuild -version 2>/dev/null | awk '/Build version/ {print $3}')"
+  if ! xcrun appintentsmetadataprocessor \
+      --output "$appex/Contents/Resources" \
+      --toolchain-dir "$toolchain" \
+      --module-name NavoControls \
+      --sdk-root "$sdk" \
+      --xcode-version "${xcode:-unknown}" \
+      --platform-family macOS \
+      --deployment-target 26.0 \
+      --target-triple "$arch-apple-macos26.0" \
+      --source-file-list "$work/sources.txt" \
+      --swift-const-vals-list "$work/constvalues.txt" \
+      --force >/dev/null 2>&1 \
+     || [ ! -d "$appex/Contents/Resources/Metadata.appintents" ]; then
+    echo "warning: no App Intents metadata (appintentsmetadataprocessor needs Xcode)."
+    rm -rf "$appex"
+    return 1
+  fi
+}
+
 # Signs the extension first: the app's signature seals the code inside it.
 sign_share_extension() {
   local identity="$1"
@@ -85,6 +141,17 @@ sign_share_extension() {
   [ -d "$appex" ] || return 0
   if ! codesign --force "$@" --entitlements "$ROOT/Extensions/NavoShare/NavoShare.entitlements" --sign "$identity" "$appex"; then
     echo "warning: could not sign the Share extension; building Navo without it."
+    rm -rf "$appex"
+  fi
+}
+
+sign_controls_extension() {
+  local identity="$1"
+  shift
+  local appex="$APP/Contents/PlugIns/NavoControls.appex"
+  [ -d "$appex" ] || return 0
+  if ! codesign --force "$@" --entitlements "$ROOT/Extensions/NavoControls/NavoControls.entitlements" --sign "$identity" "$appex"; then
+    echo "warning: could not sign the Control Center extension; building Navo without it."
     rm -rf "$appex"
   fi
 }
@@ -135,6 +202,9 @@ build() {
   if ! build_share_extension "$sdk" "$arch"; then
     echo "warning: the Share extension did not build (see above). Navo works without it; Share > Navo will be missing."
   fi
+  if ! build_controls_extension "$sdk" "$arch"; then
+    echo "warning: the Control Center extension did not build (see above). Navo works without it; its controls will be missing."
+  fi
 
   local identity
   identity="$(navo_signing_identity)"
@@ -142,11 +212,13 @@ build() {
     "-")
       echo "==> Ad-hoc signing: macOS will ask for Accessibility again after each rebuild."
       sign_share_extension -
+      sign_controls_extension -
       codesign --force --entitlements "$ROOT/Resources/Navo.entitlements" --sign - "$APP"
       ;;
     "$NAVO_LOCAL_CERT")
       echo "==> Signing with the local certificate: permissions survive rebuilds."
       sign_share_extension "$identity"
+      sign_controls_extension "$identity"
       codesign --force --entitlements "$ROOT/Resources/Navo.entitlements" --sign "$identity" "$APP"
       ;;
     *)
@@ -157,6 +229,7 @@ build() {
         "Developer ID Application:"*) extra+=(--timestamp) ;;
       esac
       sign_share_extension "$identity" "${extra[@]}"
+      sign_controls_extension "$identity" "${extra[@]}"
       codesign --force "${extra[@]}" --entitlements "$ROOT/Resources/Navo.entitlements" --sign "$identity" "$APP"
       ;;
   esac
