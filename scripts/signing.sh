@@ -1,10 +1,14 @@
 #!/bin/bash
 # Picks a stable code-signing identity for Navo so macOS keeps the Accessibility and
-# Microphone permissions across rebuilds (they are tied to the app's signature).
+# Microphone permissions across rebuilds and updates (they are tied to the app's signature).
 #   1. NAVO_SIGN_IDENTITY if set
-#   2. an "Apple Development" or "Developer ID Application" certificate
+#   2. a "Developer ID Application" certificate (for notarized releases, see package.sh)
 #   3. a self-signed "Navo Local Signing" certificate, created once in the login keychain
 #   4. ad-hoc ("-"), which changes on every build
+# Never an "Apple Development" certificate unless NAVO_SIGN_IDENTITY names it: it is meant for
+# testing on your own devices, and when Apple revokes it macOS reports every copy signed with it
+# as malware (that happened to Navo 0.22.x). A self-signed certificate is not Apple's, so nothing
+# can revoke it, and it stays the same across releases so permissions carry over.
 # Prints the identity name on stdout. Sourced by build-app.sh.
 
 NAVO_LOCAL_CERT="Navo Local Signing"
@@ -45,7 +49,7 @@ navo_signing_identity() {
   fi
   local apple
   apple="$(security find-identity -v -p codesigning 2>/dev/null \
-    | awk -F'"' '/Apple Development|Developer ID Application/ { print $2; exit }')"
+    | awk -F'"' '/Developer ID Application/ { print $2; exit }')"
   if [ -n "$apple" ]; then
     echo "$apple"
     return

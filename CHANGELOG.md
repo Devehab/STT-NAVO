@@ -3,6 +3,11 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.22.3
+
+- **No more malware warning.** Navo 0.13 to 0.22.2 were signed with an Apple Development certificate that Apple has since revoked, so macOS reports those copies as malware and will not open a fresh download. Navo is now signed with its own certificate, which is not Apple's and cannot be revoked, and stays the same from one version to the next, so the microphone and Accessibility permissions carry over to later updates. Install it with the one line, or open the download and allow it once in System Settings > Privacy & Security > Open Anyway.
+- **One time only:** because the signature changed, macOS asks once more for the microphone and Accessibility (the installer clears the old switches, which no longer applied).
+
 ## 0.22.2
 
 - **Navo's controls show up in Control Center.** In 0.22.0 and 0.22.1 the Navo controls were missing from Edit Controls: macOS started Navo's controls extension, and it quit at once, before it could say which controls it has. It now starts the way every extension built with Xcode does, and all six are there: Dictate, Record meeting, Language, Hide from screen sharing, Clipboard history and Flow Bar.

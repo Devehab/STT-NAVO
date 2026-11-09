@@ -221,7 +221,9 @@ build() {
     "$NAVO_LOCAL_CERT")
       echo "==> Signing with the local certificate: permissions survive rebuilds."
       sign_share_extension "$identity"
-      sign_controls_extension "$identity"
+      # The controls extension is signed ad-hoc, like Tapdeck's, which Control Center is known to
+      # load; it needs no permissions, so it loses nothing when its signature changes.
+      sign_controls_extension -
       codesign --force --entitlements "$ROOT/Resources/Navo.entitlements" --sign "$identity" "$APP"
       ;;
     *)
