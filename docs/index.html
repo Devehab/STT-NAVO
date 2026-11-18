@@ -2151,9 +2151,9 @@ pre .c {
   <section class="section band news-band" id="new" aria-labelledby="new-title">
     <div class="wrap">
       <div class="section-head">
-        <p class="eyebrow"><span class="ver" dir="ltr">v<span data-version>0.22.3</span></span> <span data-i18n="new.date">October 2026</span></p>
+        <p class="eyebrow"><span class="ver" dir="ltr">v<span data-version>0.22.3</span></span> <span data-i18n="new.date">November 2026</span></p>
         <h2 id="new-title" data-i18n="new.title">What is new in this version</h2>
-        <p data-i18n="new.lead">A big month: meeting text you can trust while it is written, and one Word file with all your meetings.</p>
+        <p data-i18n="new.lead">A fifth speech engine, Jais-ASR: the lowest error rate on the Arabic leaderboard, and the dialects of 19 Arab countries, Levantine included. Plus meeting text you can trust while it is written.</p>
       </div>
       <div class="news-shots">
         <figure>
@@ -2166,14 +2166,15 @@ pre .c {
         </figure>
       </div>
       <div class="more news">
+        <article><svg class="ico" aria-hidden="true"><use href="#i-lang"/></svg><h4 data-i18n="n0.t">Jais-ASR, for Arabic as it is spoken</h4><p data-i18n="n0.p">IFM's model knows Modern Standard Arabic and the dialects of 19 countries, and keeps English words in English letters. Download it in Settings > Speech engines (7 GB, no account), use it for dictation, meetings, files or the API.</p></article>
         <article><svg class="ico" aria-hidden="true"><use href="#i-rec"/></svg><h4 data-i18n="n1.t">Live text you can trust</h4><p data-i18n="n1.p">Notetaker and Transcribe write as people speak, then listen to every 20 seconds again as a whole, so the live text is as accurate as a transcription afterwards.</p></article>
         <article><svg class="ico" aria-hidden="true"><use href="#i-retry"/></svg><h4 data-i18n="n2.t">Redo several with another engine</h4><p data-i18n="n2.p">Select recordings or files with a Command-click and transcribe them again with any engine and language. They run one after the other, and Stop all ends them.</p></article>
         <article><svg class="ico" aria-hidden="true"><use href="#i-file"/></svg><h4 data-i18n="n3.t">One Word file with all of them</h4><p data-i18n="n3.p">Copy or export the texts you select, oldest first, each with its title and date, ready for Word, Pages or Google Docs. Arabic stays right to left.</p></article>
         <article><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg><h4 data-i18n="n4.t">AI that reads several meetings</h4><p data-i18n="n4.p">Summarize or rewrite several at once. Navo checks the model's context window first and reads a long text in parts, so it never stalls. Use the models you already have in LM Studio.</p></article>
         <article><svg class="ico" aria-hidden="true"><use href="#i-pie"/></svg><h4 data-i18n="n5.t">See how fast each model is</h4><p data-i18n="n5.p">A Performance page with the speed, the time to the first word, tokens in and out, and how well a model knows Arabic. Problems are logged, never in your way.</p></article>
-        <article><svg class="ico" aria-hidden="true"><use href="#i-quiet"/></svg><h4 data-i18n="n6.t">Quiet when you share your screen</h4><p data-i18n="n6.p">Hide Navo from screen sharing, get a notification when transcriptions are done, and pick an emoji instead of the recording dot in the menu bar.</p></article>
+        
       </div>
-      <p class="note-line"><span data-i18n="new.also">Also new: Navo in Control Center and the menu bar (macOS 26), AI and live text at the same time, your old meetings open while one records, keep talking while Navo writes, and select text across paragraphs.</span> <a href="https://github.com/Devehab/STT-NAVO/blob/main/CHANGELOG.md" data-i18n="new.all">All changes</a></p>
+      <p class="note-line"><span data-i18n="new.also">Also new: Navo in Control Center and the menu bar (macOS 26), hide Navo from screen sharing, a notification when transcriptions are done, AI and live text at the same time, your old meetings open while one records, keep talking while Navo writes, and select text across paragraphs.</span> <a href="https://github.com/Devehab/STT-NAVO/blob/main/CHANGELOG.md" data-i18n="new.all">All changes</a></p>
     </div>
   </section>
 
@@ -2190,7 +2191,7 @@ pre .c {
         <article><svg class="ico" aria-hidden="true"><use href="#i-mic"/></svg><h4 data-i18n="w3.t">Two languages in one sentence</h4><p data-i18n="w3.p">Say staging or release inside an Arabic sentence and it comes out in English letters, not as a guess in Arabic script.</p></article>
         <article><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg><h4 data-i18n="w4.t">Clean text, not a raw transcript</h4><p data-i18n="w4.p">A small model on your Mac adds the punctuation and drops the filler words. It never translates and never changes your dialect.</p></article>
       </div>
-      <p class="note-line" data-i18n="why.proof">Audar ASR V1 Turbo and Cohere Transcribe Arabic, both in Navo, rank first and second on the <a href="https://huggingface.co/spaces/elmresearchcenter/open_universal_arabic_asr_leaderboard">Open Universal Arabic ASR Leaderboard</a>, as their makers report, at about 23% and 26% average word error rate. Whisper Large v3, the model many dictation apps are built on, is at about 37% on the same tests.</p>
+      <p class="note-line" data-i18n="why.proof">Jais-ASR, Audar ASR V1 Turbo and Cohere Transcribe Arabic, all three in Navo, are at the top of the <a href="https://huggingface.co/spaces/elmresearchcenter/open_universal_arabic_asr_leaderboard">Open Universal Arabic ASR Leaderboard</a>, as their makers report, at about 22.8%, 23% and 26% average word error rate. Whisper Large v3, the model many dictation apps are built on, is at about 37% on the same tests.</p>
 
       <h3 class="table-title" data-i18n="why.table">Navo next to the alternatives</h3>
       <div class="table-wrap">
@@ -2503,6 +2504,12 @@ pre .c {
               <td><span class="tag tag-ok" data-i18n="token.no">Not needed</span></td>
             </tr>
             <tr>
+              <td><strong dir="ltr">Jais-ASR</strong><small dir="ltr">IFM</small></td>
+              <td data-i18n="m.jais">Arabic as it is spoken: Modern Standard and the dialects of 19 countries, with English words kept in English letters. The most accurate for Arabic; best with 16 GB of memory.</td>
+              <td dir="ltr">7 GB</td>
+              <td><span class="tag tag-ok" data-i18n="token.no">Not needed</span></td>
+            </tr>
+            <tr>
               <td><strong dir="ltr">Cohere Transcribe Arabic</strong><small dir="ltr">Cohere Labs</small></td>
               <td data-i18n="m.cohere">Arabic, Modern Standard and dialects, and English.</td>
               <td dir="ltr">4.1 GB</td>
@@ -2734,7 +2741,7 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     "w3.p": "قل staging أو release داخل جملة عربية فتُكتب بحروف إنجليزية، لا تخميناً بحروف عربية.",
     "w4.t": "نص نظيف، لا تفريغ خام",
     "w4.p": "نموذج صغير على جهازك يضيف علامات الترقيم ويحذف كلمات الحشو، دون أن يترجم أو يغيّر لهجتك.",
-    "why.proof": "نموذجا Audar ASR V1 Turbo و Cohere Transcribe Arabic، وكلاهما في Navo، في المركزين الأول والثاني على <a href=\"https://huggingface.co/spaces/elmresearchcenter/open_universal_arabic_asr_leaderboard\">Open Universal Arabic ASR Leaderboard</a> بحسب ما يذكره مطوروهما، بمعدل خطأ في الكلمات يقارب 23% و26%. أما Whisper Large v3، الذي تُبنى عليه تطبيقات إملاء كثيرة، فيقارب 37% على الاختبارات نفسها.",
+    "why.proof": "نماذج Jais-ASR و Audar ASR V1 Turbo و Cohere Transcribe Arabic، والثلاثة في Navo، في صدارة <a href=\"https://huggingface.co/spaces/elmresearchcenter/open_universal_arabic_asr_leaderboard\">Open Universal Arabic ASR Leaderboard</a> بحسب ما يذكره مطوروها، بمعدل خطأ في الكلمات يقارب 22.8% و23% و26%. أما Whisper Large v3، الذي تُبنى عليه تطبيقات إملاء كثيرة، فيقارب 37% على الاختبارات نفسها.",
     "why.table": "Navo مقارنةً بالبدائل",
     "c.what": "ما تحصل عليه",
     "c.builtin": "الإملاء المدمج",
@@ -2793,9 +2800,11 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     "ph.write": "الكلام يظهر وأنت تحكي",
     "ph.paste": "ترفع إصبعك فيُلصق النص",
 
-    "new.date": "أكتوبر 2026",
+    "new.date": "نوفمبر 2026",
     "new.title": "ما الجديد في هذا الإصدار",
-    "new.lead": "شهر حافل: نص للاجتماعات تثق به وهو يُكتب، وملف Word واحد فيه كل اجتماعاتك.",
+    "new.lead": "محرك صوت خامس، Jais-ASR: أقل نسبة أخطاء على لوحة صدارة العربية، ولهجات 19 دولة عربية منها الشامية. ونص للاجتماعات تثق به وهو يُكتب.",
+    "n0.t": "Jais-ASR للعربية كما نحكيها",
+    "n0.p": "نموذج IFM يعرف الفصحى ولهجات 19 دولة، ويُبقي الكلمات الإنجليزية بحروفها. نزّله من Settings > Speech engines (7 جيجا، بلا حساب)، واستخدمه للإملاء والاجتماعات والملفات والـ API.",
     "shot1.alt": "نافذة Notetaker أثناء تسجيل اجتماع: النص يظهر فقرة فقرة مع وقت كل فقرة، والجملة التي تُقال الآن باللون الرمادي",
     "shot1.cap": "يكتب Notetaker الاجتماع وهم يتكلمون، ويستمر بالتسجيل وأنت تفتح اجتماعاتك السابقة.",
     "shot2.alt": "أربعة ملفات محددة في Transcribe، مع إعادة النسخ والنسخ والتصدير والذكاء الاصطناعي لها كلها",
@@ -2812,7 +2821,7 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     "n5.p": "صفحة أداء فيها السرعة، والوقت حتى أول كلمة، والتوكنز الداخلة والخارجة، ومدى معرفة النموذج بالعربية. والمشاكل تُسجَّل دون أن تعطّلك.",
     "n6.t": "هادئ حين تشارك شاشتك",
     "n6.p": "أخفِ Navo عن مشاركة الشاشة، واحصل على إشعار عند انتهاء النسخ، واختر إيموجي بدل نقطة التسجيل في شريط القوائم.",
-    "new.also": "وأيضاً: Navo في مركز التحكم وشريط القوائم (macOS 26)، والذكاء الاصطناعي والنص المباشر في وقت واحد، واجتماعاتك القديمة مفتوحة أثناء التسجيل، وتابع كلامك بينما يكتب Navo، وحدّد النص عبر عدة فقرات.",
+    "new.also": "وأيضاً: Navo في مركز التحكم وشريط القوائم (macOS 26)، وإخفاء Navo عن مشاركة الشاشة، وإشعار عند انتهاء النسخ، والذكاء الاصطناعي والنص المباشر في وقت واحد، واجتماعاتك القديمة مفتوحة أثناء التسجيل، وتابع كلامك بينما يكتب Navo، وحدّد النص عبر عدة فقرات.",
     "new.all": "كل التغييرات",
     "how.title": "ثلاث حركات، في أي تطبيق",
     "how.1.t": "اضغط",
@@ -2921,6 +2930,7 @@ curl http://127.0.0.1:7861/gemma/v1/chat/completions \
     "m.cohere": "العربية، الفصحى واللهجات، والإنجليزية.",
     "m.whisper": "الإنجليزية ونحو 100 لغة. الأخف والأسرع تحميلاً.",
     "m.qwen3": "الإنجليزية و30 لغة.",
+    "m.jais": "العربية كما نحكيها: الفصحى ولهجات 19 دولة، والكلمات الإنجليزية بحروفها. الأدق للعربية، ويفضّل ذاكرة 16 جيجا.",
     "m.gemma": "الملخصات وإعادة الصياغة. الخيار الأفضل للعربية.",
     "m.llama": "الملخصات وإعادة الصياغة. قوي في الإنجليزية.",
     "m.cleanup": "يرتب كل إملاء: علامات الترقيم وكلمات الحشو. يُثبَّت تلقائياً.",

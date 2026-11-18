@@ -3,6 +3,13 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.23.0
+
+- **Jais-ASR, a fifth speech engine.** IFM's Jais-ASR has the lowest error rate on the Open Universal Arabic ASR leaderboard (22.8% words, 8.3% characters, as IFM reports) and knows Modern Standard Arabic and the dialects of 19 Arab countries, Levantine included. Navo uses its 8-bit build for Macs, the most accurate of IFM's Mac builds (7 GB, public, Apache 2.0). Download it in Settings > Speech engines like the others: Navo adds what it runs on to the engine first (mlx-vlm with IFM's Jais-ASR patch, about 30 MB), then downloads the model and turns it on. Turn it on or off, use it for dictation, meetings and files, or call it at `/jais/v1/audio/transcriptions` ([docs/API-Jais.md](docs/API-Jais.md)).
+- **English words stay in English letters** with Jais: "الـ build جاهز على الـ staging" comes out as said. With Arabic it picks the dialect from the audio; with Auto it also detects English, French, Spanish and Italian. When it hears no speech it says so, and nothing is invented.
+- **A download that does not fit is refused before it starts.** Navo checks the free disk space first and says how much is needed, instead of filling the disk.
+- **Check Jais on any Mac** with one line: `curl -fsSL https://devehab.github.io/STT-NAVO/check-jais.sh | bash` sends four short recordings to the engine and reports the error rates, the speed and the memory.
+
 ## 0.22.3
 
 - **No more malware warning.** Navo 0.13 to 0.22.2 were signed with an Apple Development certificate that Apple has since revoked, so macOS reports those copies as malware and will not open a fresh download. Navo is now signed with its own certificate, which is not Apple's and cannot be revoked, and stays the same from one version to the next, so the microphone and Accessibility permissions carry over to later updates. Install it with the one line, or open the download and allow it once in System Settings > Privacy & Security > Open Anyway.

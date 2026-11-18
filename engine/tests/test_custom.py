@@ -61,5 +61,15 @@ def test_registered_models_are_language_models(tmp_path):
 def test_memory_limit_follows_the_model_size(tmp_path):
     small = tmp_path / "small.gguf"
     small.write_bytes(b"x" * 10)
-    assert custom.memory_limit_for(small) >= custom.MEMORY_LIMIT_BYTES
+    # The built-in models' room, or most of the memory on a Mac with less (a 7 GB cloud Mac).
+    assert custom.memory_limit_for(small) == min(custom.MEMORY_LIMIT_BYTES, int(custom.total_memory() * 0.85))
     assert custom.memory_limit_for(small) <= custom.total_memory()
+
+
+def test_memory_limit_on_a_small_mac(tmp_path, monkeypatch):
+    small = tmp_path / "small.gguf"
+    small.write_bytes(b"x" * 10)
+    monkeypatch.setattr(custom, "total_memory", lambda: 7 * custom.GIB)
+    assert custom.memory_limit_for(small) == int(7 * custom.GIB * 0.85)
+    monkeypatch.setattr(custom, "total_memory", lambda: 16 * custom.GIB)
+    assert custom.memory_limit_for(small) == custom.MEMORY_LIMIT_BYTES

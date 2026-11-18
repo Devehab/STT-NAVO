@@ -14,6 +14,7 @@ on:
       - engine/add-jais.sh
       - engine/jais/**
       - engine/setup-engine.sh
+      - engine/tests/**
       - docs/check-jais.py
       - .github/workflows/jais-asr.yml
 
@@ -46,6 +47,7 @@ jobs:
           df -h "$HOME"
 
       - name: Install Navo's engine with Jais-ASR (setup-engine.sh, as the app runs it)
+        id: install
         env:
           NAVO_ASR_MODELS: ${{ matrix.model }}
           NAVO_SKIP_LLM: "1"
@@ -60,6 +62,8 @@ jobs:
           cd engine && "$PY" -m pytest -q
 
       - name: Start the engine with Jais-ASR on
+        id: start
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         env:
           MODEL: ${{ matrix.model }}
         run: |
@@ -71,6 +75,7 @@ jobs:
           curl -fs http://127.0.0.1:7861/health | head -c 600; echo
 
       - name: Check Jais-ASR through the API
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
         run: |
           "$NAVO_SUPPORT_DIR/engine/venv/bin/python" -I docs/check-jais.py --samples docs/audio \
             --markdown "$RUNNER_TEMP/report.md" --json "$RUNNER_TEMP/report.json"
