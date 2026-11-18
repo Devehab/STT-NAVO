@@ -158,8 +158,18 @@ def load_sample(name: str, folder: Path | None) -> bytes:
 
 
 def rss_mb(pid) -> float | None:
+    """The process's memory in MB: its footprint (GPU memory included, what Activity Monitor
+    shows), else its resident size (which leaves out the model's GPU memory)."""
     if not pid:
         return None
+    try:
+        out = subprocess.run(["/usr/bin/footprint", str(int(pid))], capture_output=True, text=True, timeout=30)
+        found = re.search(r"Footprint:\s*([\d.]+)\s*(KB|MB|GB)", out.stdout)
+        if found:
+            value, unit = float(found.group(1)), found.group(2)
+            return round(value / 1024 if unit == "KB" else value * 1024 if unit == "GB" else value, 0)
+    except Exception:
+        pass
     try:
         out = subprocess.run(["ps", "-o", "rss=", "-p", str(int(pid))], capture_output=True, text=True, timeout=5)
         return round(int(out.stdout.strip()) / 1024, 0)
