@@ -5,6 +5,7 @@
     python3 transcribe.py recording.wav --engine audar    # Audar ASR V1 Turbo
     python3 transcribe.py meeting.mp3 --engine whisper --language en --json
     python3 transcribe.py interview.wav --engine qwen3 --language fr
+    python3 transcribe.py voice-note.wav --engine jais    # Jais-ASR, Arabic dialects
     NAVO_URL=http://127.0.0.1:7861 python3 transcribe.py note.ogg
 """
 
@@ -20,7 +21,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-ENGINES = ("cohere", "audar", "whisper", "qwen3")
+ENGINES = ("cohere", "audar", "whisper", "qwen3", "jais")
 
 
 def post_form(url: str, fields: dict, path: str, timeout: float = 600) -> dict:
@@ -65,7 +66,7 @@ def transcribe(
 ) -> dict:
     """Returns {"text", "language", "duration", "engine", "model", "backend", "processing_ms"}.
 
-    engine: "cohere", "audar", "whisper", "qwen3", or None for the engine Navo uses for dictation.
+    engine: "cohere", "audar", "whisper", "qwen3", "jais", or None for the engine Navo uses for dictation.
     language: "ar", "en", "auto" (not Cohere), or another code the engine lists in /v1/engines.
     """
     root = base_url.rstrip("/") + (f"/{engine}" if engine else "")

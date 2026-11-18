@@ -429,6 +429,8 @@ struct SettingsView: View {
             return switcher + chip + " With Auto, Whisper detects the language itself, in any of its 100 languages. It is at its best in English."
         case .qwen3:
             return switcher + chip + " With Auto, Qwen3 detects the language itself, in any of its 30 languages. It is at its best in English and Chinese."
+        case .jais:
+            return switcher + chip + " Jais always picks up the dialect (19 countries, Levantine included) from the audio and keeps English words in English letters. With Auto it also detects English, French, Spanish and Italian."
         }
     }
 
@@ -534,6 +536,7 @@ struct SettingsView: View {
                 ModelIDField(title: "Audar model", value: $settings.audarModel, fallback: SpeechEngine.audar.defaultModel)
                 ModelIDField(title: "Whisper model", value: $settings.whisperModel, fallback: SpeechEngine.whisper.defaultModel)
                 ModelIDField(title: "Qwen3 model", value: $settings.qwen3Model, fallback: SpeechEngine.qwen3.defaultModel)
+                ModelIDField(title: "Jais model", value: $settings.jaisModel, fallback: SpeechEngine.jais.defaultModel)
                 TextField("Engine port", value: $settings.enginePort, format: .number.grouping(.never))
                 Text("Changes apply after Restart. Models load from the local Hugging Face cache; a new model needs Download or Reinstall.")
                     .font(.caption)
@@ -542,7 +545,7 @@ struct SettingsView: View {
         } header: {
             SectionTitle("Speech engines, on this Mac", "waveform")
         } footer: {
-            Text("Two engines can be on at once: the one marked Dictation, which is always on, and one more. Turn one off to turn another on. Models load only when they are needed: when you start talking, compare, or another app sends audio to \(settings.engineBaseURL.absoluteString)/cohere/v1, /audar/v1, /whisper/v1 or /qwen3/v1. After the idle time they leave memory and the engine sleeps at a few dozen MB. The first dictation after a sleep takes a few seconds longer.")
+            Text("Two engines can be on at once: the one marked Dictation, which is always on, and one more. Turn one off to turn another on. Models load only when they are needed: when you start talking, compare, or another app sends audio to \(settings.engineBaseURL.absoluteString)/cohere/v1, /audar/v1, /whisper/v1, /qwen3/v1 or /jais/v1. After the idle time they leave memory and the engine sleeps at a few dozen MB. The first dictation after a sleep takes a few seconds longer.")
                 .foregroundStyle(.secondary)
         }
     }
@@ -1177,7 +1180,7 @@ private struct SpeechEngineRow: View {
                         .font(.caption)
                 }
             }
-            if engine.downloading == speech {
+            if engine.downloading == speech || (speech == .jais && engine.addingJais) {
                 ProgressView(value: engine.installProgress)
                 Text(engine.installStatus)
                     .font(.caption)
@@ -1211,6 +1214,14 @@ private struct SpeechEngineRow: View {
                 }
                 .disabled(engine.isBusy)
                 .help(speech.isGated ? "Paste your Hugging Face token in the field under it first" : "Public model, no account or token needed")
+            } else if speech == .jais, engine.jaisRuntime == nil {
+                // The model is here but the engine lacks mlx-vlm with the Jais-ASR patch
+                // (an engine set up again from scratch, for example).
+                Button(engine.addingJais ? "Adding…" : "Add Jais support") {
+                    Task { await engine.addJaisSupport() }
+                }
+                .disabled(engine.isBusy)
+                .help("Jais-ASR runs on mlx-vlm with IFM's Jais-ASR patch: about 30 MB, added once")
             } else {
                 if !isDictation {
                     Button("Use for dictation") { engine.useForDictation(speech) }

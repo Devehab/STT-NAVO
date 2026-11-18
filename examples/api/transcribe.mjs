@@ -5,6 +5,7 @@
 //   node transcribe.mjs meeting.mp3 en cohere      Cohere Transcribe Arabic
 //   node transcribe.mjs meeting.mp3 en whisper     Whisper Large v3 Turbo
 //   node transcribe.mjs talk.wav auto qwen3        Qwen3-ASR 1.7B, language detected
+//   node transcribe.mjs talk.wav ar jais           Jais-ASR, Arabic dialects
 import { realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
@@ -12,7 +13,7 @@ import { pathToFileURL } from "node:url";
 
 const BASE_URL = process.env.NAVO_URL ?? "http://127.0.0.1:7861";
 
-// engine: "cohere", "audar", "whisper", "qwen3", or undefined for the engine Navo uses for dictation.
+// engine: "cohere", "audar", "whisper", "qwen3", "jais", or undefined for the engine Navo uses for dictation.
 export async function transcribe(path, language = "ar", engine = undefined) {
   const form = new FormData();
   form.append("language", language);
@@ -28,7 +29,7 @@ export async function transcribe(path, language = "ar", engine = undefined) {
 if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const [file, language = "ar", engine] = process.argv.slice(2);
   if (!file) {
-    console.error("usage: node transcribe.mjs <audio file> [ar|en|auto|fr|...] [cohere|audar|whisper|qwen3]");
+    console.error("usage: node transcribe.mjs <audio file> [ar|en|auto|fr|...] [cohere|audar|whisper|qwen3|jais]");
     process.exit(2);
   }
   transcribe(file, language, engine)

@@ -5,10 +5,11 @@
     python3 openai_client.py recording.wav audar      # Audar
     python3 openai_client.py recording.wav whisper    # Whisper Large v3 Turbo
     python3 openai_client.py recording.wav qwen3      # Qwen3-ASR 1.7B
+    python3 openai_client.py recording.wav jais       # Jais-ASR
 
 Each speech engine has its own base URL: http://127.0.0.1:7861/cohere/v1,
-http://127.0.0.1:7861/audar/v1, http://127.0.0.1:7861/whisper/v1 and
-http://127.0.0.1:7861/qwen3/v1. The language models that summarize and rewrite are at
+http://127.0.0.1:7861/audar/v1, http://127.0.0.1:7861/whisper/v1,
+http://127.0.0.1:7861/qwen3/v1 and http://127.0.0.1:7861/jais/v1. The language models that summarize and rewrite are at
 http://127.0.0.1:7861/gemma/v1 and http://127.0.0.1:7861/llama/v1 (docs/API-LLM.md).
 
 The script transcribes the recording, then asks Gemma for a summary. The engine never keeps a

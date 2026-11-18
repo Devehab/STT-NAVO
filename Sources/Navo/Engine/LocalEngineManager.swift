@@ -166,6 +166,8 @@ final class LocalEngineManager: ObservableObject {
         let llms: [WriterEntry]?
         let mlxLmVersion: String?
         let ggufRuntime: String?
+        /// mlx-vlm's version when the engine can run Jais-ASR (mlx-vlm with IFM's patch).
+        let jaisRuntime: String?
     }
 
     /// Live facts that show the engine runs on this Mac.
@@ -223,6 +225,10 @@ final class LocalEngineManager: ObservableObject {
     @Published private(set) var ggufRuntime: String?
     /// GGUF support is being added to the engine.
     @Published private(set) var addingGGUF = false
+    /// mlx-vlm's version when the engine can run Jais-ASR (nil: not added yet, or not known).
+    @Published private(set) var jaisRuntime: String?
+    /// What Jais-ASR needs is being added to the engine.
+    @Published private(set) var addingJais = false
     @Published private(set) var llmLoaded: String?
     @Published private(set) var details: Details?
 
@@ -446,6 +452,7 @@ final class LocalEngineManager: ObservableObject {
             "--audar-model", settings.model(for: SpeechEngine.audar),
             "--whisper-model", settings.model(for: SpeechEngine.whisper),
             "--qwen3-model", settings.model(for: SpeechEngine.qwen3),
+            "--jais-model", settings.model(for: SpeechEngine.jais),
             "--llm-model", settings.cleanupModel,
             "--gemma-model", settings.model(for: WritingModel.gemma),
             "--llama-model", settings.model(for: WritingModel.llama),
@@ -564,6 +571,7 @@ final class LocalEngineManager: ObservableObject {
         llmAvailable = health.llm?.available ?? false
         llmLoaded = health.llm?.loadedModel
         if ggufRuntime != health.ggufRuntime { ggufRuntime = health.ggufRuntime }
+        if jaisRuntime != health.jaisRuntime { jaisRuntime = health.jaisRuntime }
 
         var infos: [SpeechEngine: EngineInfo] = [:]
         for entry in health.engines ?? [] {
@@ -851,6 +859,47 @@ final class LocalEngineManager: ObservableObject {
         return false
     }
 
+    /// Adds what Jais-ASR needs to the engine: mlx-vlm with IFM's Jais-ASR patch (about 30 MB,
+    /// pure Python). Download does this first; this is for a Jais model that is on the Mac already.
+    func addJaisSupport() async -> Bool {
+        guard installer == nil, isInstalled else { return false }
+        addingJais = true
+        resetInstallOutput(status: "Adding Jais-ASR support")
+        let status = await runAddJais()
+        addingJais = false
+        if status == 0 {
+            installStatus = "Jais-ASR support added"
+            downloadErrors[.jais] = nil
+            if isRunning {
+                if settings.isEnabled(.jais) {
+                    await control("enable", .jais) // a load that failed without it is tried again
+                }
+                await refresh()
+            }
+            return true
+        }
+        installStatus = lastInstallProblem(status)
+        downloadErrors[.jais] = installStatus
+        return false
+    }
+
+    /// Runs add-jais.sh (it returns at once when the engine has it already).
+    private func runAddJais() async -> Int32 {
+        guard let source = Paths.engineSource else { return -1 }
+        var environment = ProcessInfo.processInfo.environment
+        environment["NAVO_SUPPORT_DIR"] = Paths.supportDir.path
+        environment["PYTHONPYCACHEPREFIX"] = Paths.pythonCache.path
+        return await withCheckedContinuation { continuation in
+            runTool(
+                executable: URL(fileURLWithPath: "/bin/bash"),
+                arguments: [source.appendingPathComponent("add-jais.sh").path],
+                environment: environment
+            ) { status in
+                continuation.resume(returning: status)
+            }
+        }
+    }
+
     /// The last line the installer or downloader printed that explains a failure.
     var lastProblem: String { lastInstallProblem(-1) }
 
@@ -956,6 +1005,24 @@ final class LocalEngineManager: ObservableObject {
         guard installer == nil, isInstalled else { return }
         downloading = engine
         downloadErrors[engine] = nil
+        guard engine == .jais else {
+            downloadModel(engine, huggingFaceToken: huggingFaceToken)
+            return
+        }
+        // Jais-ASR runs on mlx-vlm with IFM's patch: added to the engine first (once, about 30 MB).
+        resetInstallOutput(status: "Adding Jais-ASR support")
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let status = await self.runAddJais()
+            guard status == 0 else {
+                self.downloadFinished(engine, status: status)
+                return
+            }
+            self.downloadModel(engine, huggingFaceToken: huggingFaceToken)
+        }
+    }
+
+    private func downloadModel(_ engine: SpeechEngine, huggingFaceToken: String?) {
         runDownload(model: settings.model(for: engine), label: "Downloading \(engine.shortName)", token: huggingFaceToken) { [weak self] status in
             self?.downloadFinished(engine, status: status)
         }

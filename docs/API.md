@@ -8,6 +8,7 @@ The Navo engine is the local server that runs the **speech engines**, the **lang
 | `audar` | Audar ASR V1 Turbo | `http://127.0.0.1:7861/audar/v1` | [API-Audar.md](API-Audar.md) |
 | `whisper` | Whisper Large v3 Turbo | `http://127.0.0.1:7861/whisper/v1` | [API-Whisper.md](API-Whisper.md) |
 | `qwen3` | Qwen3-ASR 1.7B | `http://127.0.0.1:7861/qwen3/v1` | [API-Qwen3.md](API-Qwen3.md) |
+| `jais` | Jais-ASR | `http://127.0.0.1:7861/jais/v1` | [API-Jais.md](API-Jais.md) |
 
 Every engine answers the same request with the same response shape, so switching is a URL change. **At most two engines are on at once** (see [Two engines at a time](#two-engines-at-a-time)). This page covers what they share: memory and sleep, turning engines on and off, languages, comparing them on the same audio, the cleanup LLM, and running the engine without the app.
 
@@ -16,9 +17,10 @@ Which one to pick:
 | Engine | Best at | Languages | Size | Hugging Face token |
 | --- | --- | --- | --- | --- |
 | `cohere` | Arabic dialects mixed with English | `ar`, `en` | about 4.1 GB | Needed once (gated model) |
-| `audar` | Arabic dialects, first on the Open Universal Arabic ASR leaderboard | `ar`, `en`, `auto` | about 4.7 GB | Not needed |
+| `audar` | Arabic dialects, near the top of the Open Universal Arabic ASR leaderboard | `ar`, `en`, `auto` | about 4.7 GB | Not needed |
 | `whisper` | English, fast; 100 languages | `ar`, `en`, `auto` and 97 more | about 1.6 GB | Not needed |
 | `qwen3` | English and Chinese; 30 languages | `ar`, `en`, `auto` and 28 more | about 4.1 GB | Not needed |
+| `jais` | Arabic dialects of 19 countries (Levantine included), the lowest error rate on the Open Universal Arabic ASR leaderboard; English words kept in English letters | `ar`, `en`, `auto`, `fr`, `es`, `it` | about 7 GB | Not needed |
 
 - **Base URL:** `http://127.0.0.1:7861` (port configurable in Navo > Settings > Speech engines > Advanced)
 - **Local only:** it listens on 127.0.0.1, so only programs on this Mac can reach it. Audio never leaves the Mac.
@@ -34,6 +36,7 @@ Which one to pick:
 | `POST` | `/audar/v1/audio/transcriptions` | Audio in, text out, with Audar |
 | `POST` | `/whisper/v1/audio/transcriptions` | Audio in, text out, with Whisper |
 | `POST` | `/qwen3/v1/audio/transcriptions` | Audio in, text out, with Qwen3-ASR |
+| `POST` | `/jais/v1/audio/transcriptions` | Audio in, text out, with Jais-ASR |
 | `POST` | `/v1/audio/transcriptions` | Same, with the engine named in `model`, otherwise the default engine |
 | `POST` | `/v1/audio/compare` | One file through several engines, results side by side |
 | `GET` | `/health` | Engine process, every speech engine, cleanup model |
@@ -68,7 +71,7 @@ curl -s -F file=@talk.mp3 -F language=auto http://127.0.0.1:7861/qwen3/v1/audio/
 curl -s -F file=@note.wav -F language=ar http://127.0.0.1:7861/v1/audio/compare
 ```
 
-Ready-made clients are in [`examples/api`](../examples/api): `transcribe.py` (Python, standard library only, `--engine cohere|audar|whisper|qwen3`), `compare.py` (the engines that are on, on one file), `transcribe.mjs` (Node 18+, no dependencies) and `openai_client.py` (official OpenAI SDK).
+Ready-made clients are in [`examples/api`](../examples/api): `transcribe.py` (Python, standard library only, `--engine cohere|audar|whisper|qwen3|jais`), `compare.py` (the engines that are on, on one file), `transcribe.mjs` (Node 18+, no dependencies) and `openai_client.py` (official OpenAI SDK).
 
 ## Memory: sleep and wake
 
@@ -137,7 +140,8 @@ curl -s -X POST http://127.0.0.1:7861/v1/engines/whisper/enable
     {"id": "cohere", "name": "Cohere Transcribe Arabic", "model": "CohereLabs/cohere-transcribe-arabic-07-2026", "languages": ["ar", "en"], "status": "ready", "downloaded": true, "backend": "mlx", "device": "Apple GPU (MLX)", "error": null, "load_seconds": 6.4, "idle_seconds": 42.0, "model_path": "...", "model_bytes": 4130000000, "transcriptions": 42, "last_processing_ms": 870, "default": true},
     {"id": "audar", "name": "Audar ASR V1 Turbo", "model": "audarai/Audar-ASR-V1-Turbo", "languages": ["ar", "en", "auto"], "status": "asleep", "downloaded": true, "backend": null, "device": null, "error": null, "load_seconds": null, "idle_seconds": null, "model_path": null, "model_bytes": null, "transcriptions": 7, "last_processing_ms": 1180, "default": false},
     {"id": "whisper", "name": "Whisper Large v3 Turbo", "model": "mlx-community/whisper-large-v3-turbo-asr-fp16", "languages": ["ar", "en", "auto", "zh", "de", "es", "..."], "status": "off", "downloaded": true, "...": "..."},
-    {"id": "qwen3", "name": "Qwen3-ASR 1.7B", "model": "mlx-community/Qwen3-ASR-1.7B-bf16", "languages": ["ar", "en", "auto", "zh", "yue", "de", "..."], "status": "off", "downloaded": false, "...": "..."}
+    {"id": "qwen3", "name": "Qwen3-ASR 1.7B", "model": "mlx-community/Qwen3-ASR-1.7B-bf16", "languages": ["ar", "en", "auto", "zh", "yue", "de", "..."], "status": "off", "downloaded": false, "...": "..."},
+    {"id": "jais", "name": "Jais-ASR", "model": "IFM/Jais-ASR-MLX-8bit", "languages": ["ar", "en", "auto", "fr", "es", "it"], "status": "off", "downloaded": false, "...": "..."}
   ]
 }
 ```
@@ -158,20 +162,21 @@ The **default engine** answers `POST /v1/audio/transcriptions` when the `model` 
 
 ## Languages
 
-`language` is an ISO 639-1 code. Every engine takes `ar` (Arabic in any dialect, with English mixed in) and `en`. Audar, Whisper and Qwen3 also take `auto`: the model detects the language itself. Whisper and Qwen3 take many more:
+`language` is an ISO 639-1 code. Every engine takes `ar` (Arabic in any dialect, with English mixed in) and `en`. Audar, Whisper, Qwen3 and Jais also take `auto`: the model detects the language itself. Whisper and Qwen3 take many more, Jais three more:
 
 | Engine | `language` values |
 | --- | --- |
 | `cohere` | `ar`, `en` |
 | `audar` | `ar`, `en`, `auto` |
 | `whisper` | `auto` and Whisper's 100 languages: `ar`, `en`, `zh`, `de`, `es`, `ru`, `ko`, `fr`, `ja`, `pt`, `tr`, `pl`, `ca`, `nl`, `sv`, `it`, `id`, `hi`, `fi`, `vi`, `he`, `uk`, `el`, `ms`, `cs`, `ro`, `da`, `hu`, `ta`, `no`, `th`, `ur`, `hr`, `bg`, `lt`, `la`, `mi`, `ml`, `cy`, `sk`, `te`, `fa`, `lv`, `bn`, `sr`, `az`, `sl`, `kn`, `et`, `mk`, `br`, `eu`, `is`, `hy`, `ne`, `mn`, `bs`, `kk`, `sq`, `sw`, `gl`, `mr`, `pa`, `si`, `km`, `sn`, `yo`, `so`, `af`, `oc`, `ka`, `be`, `tg`, `sd`, `gu`, `am`, `yi`, `lo`, `uz`, `fo`, `ht`, `ps`, `tk`, `nn`, `mt`, `sa`, `lb`, `my`, `bo`, `tl`, `mg`, `as`, `tt`, `haw`, `ln`, `ha`, `ba`, `jw`, `su`, `yue` |
+| `jais` | `ar` (MSA and 19 countries' dialects, the model picks the dialect), `en`, `fr`, `es`, `it`, `auto` |
 | `qwen3` | `auto` and Qwen3-ASR's 30 languages: `ar`, `en`, `zh`, `yue`, `de`, `fr`, `es`, `pt`, `id`, `it`, `ko`, `ru`, `th`, `vi`, `ja`, `tr`, `hi`, `ms`, `nl`, `sv`, `da`, `fi`, `pl`, `cs`, `fil`, `fa`, `el`, `hu`, `mk`, `ro` |
 
 Regional codes are taken as their language (`en-US`, `ar-SA`, `fr-FR`, `pt_BR`), except `zh-HK`, which means Cantonese (`yue`). English names work too (`arabic`, `english`, `french`, `german`, `chinese`, `cantonese` and other common ones). Every engine lists what it takes in `languages` (in `GET /v1/engines`, `/health` and `/{engine}/health`). A language an engine does not take is refused with `400`. The Navo app itself offers Arabic, English and Auto; the other languages are for API clients.
 
 ## How long audio is cut
 
-Models have a limit on how much audio they take at once (Cohere 29.5 seconds; Audar, Whisper and Qwen3 28 seconds here), so longer audio is cut into pieces and the texts are joined. A cut is only ever made inside a pause, so no word is split between two pieces:
+Models have a limit on how much audio they take at once (Cohere 29.5 seconds; Audar, Whisper, Qwen3 and Jais 28 seconds here), so longer audio is cut into pieces and the texts are joined. A cut is only ever made inside a pause, so no word is split between two pieces:
 
 1. The audio around the cut is measured in 10 ms frames. A frame is silent when it sits well below the speech around it. The threshold follows the background level over time (the quietest 50 ms within 1.5 seconds either side), so a noisy call, a quiet room and a fan that speeds up all work.
 2. Runs of silent frames are pauses. A pause of at least 300 ms is a gap between phrases or a breath, never the closure inside a word (Arabic doubled consonants can hold 200 ms), so only those are used when there are any. Among them the longest and cleanest wins, with a small preference for being near the target. The cut goes inside the pause, keeping silence on both sides.
@@ -232,7 +237,7 @@ The engine as a whole. Each speech engine is in `engines` (same objects as `GET 
   "role": "gateway",
   "version": "0.6.0",
   "default_engine": "cohere",
-  "engines": [{"id": "cohere", "status": "ready", "...": "..."}, {"id": "audar", "status": "asleep", "...": "..."}, {"id": "whisper", "status": "off", "...": "..."}, {"id": "qwen3", "status": "off", "...": "..."}],
+  "engines": [{"id": "cohere", "status": "ready", "...": "..."}, {"id": "audar", "status": "asleep", "...": "..."}, {"id": "whisper", "status": "off", "...": "..."}, {"id": "qwen3", "status": "off", "...": "..."}, {"id": "jais", "status": "off", "...": "..."}],
   "status": "ready",
   "backend": "mlx",
   "model": "CohereLabs/cohere-transcribe-arabic-07-2026",

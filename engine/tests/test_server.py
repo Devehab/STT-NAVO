@@ -364,6 +364,9 @@ def test_engine_lookup():
     assert lookup("qwen3") == "qwen3"
     assert lookup("Qwen3-ASR-1.7B") == "qwen3"
     assert lookup("mlx-community/Qwen3-ASR-1.7B-bf16") == "qwen3"
+    assert lookup("jais") == "jais"
+    assert lookup("Jais-ASR") == "jais"
+    assert lookup("IFM/Jais-ASR-MLX-8bit") == "jais"
     assert lookup("my/own-whisper", {"whisper": "my/own-whisper"}) == "whisper"
     assert lookup("/Users/me/models/my-audar", {"audar": "/Users/me/models/my-audar"}) == "audar"
     assert "vllm-*/*" in ignore_patterns_for("audarai/Audar-ASR-V1-Turbo")
@@ -451,11 +454,11 @@ def test_long_audio_is_split_for_the_model_and_silence_is_skipped():
         service.transcribe_audio(speech, "auto")
 
 
-def test_four_engines_and_their_languages():
-    from navo_engine.asr import Qwen3MLXBackend
-    from navo_engine.engines import ALL_LANGUAGES, MAX_ENABLED_ENGINES, PROFILES
+def test_five_engines_and_their_languages():
+    from navo_engine.asr import JaisMLXBackend, Qwen3MLXBackend
+    from navo_engine.engines import ALL_LANGUAGES, MAX_ENABLED_ENGINES, PROFILES, ignore_patterns_for
 
-    assert list(PROFILES) == ["cohere", "audar", "whisper", "qwen3"]
+    assert list(PROFILES) == ["cohere", "audar", "whisper", "qwen3", "jais"]
     assert MAX_ENABLED_ENGINES == 2
     assert PROFILES["whisper"].family == "whisper" and not PROFILES["whisper"].gated
     assert PROFILES["qwen3"].family == "qwen3_asr" and not PROFILES["qwen3"].gated
@@ -466,6 +469,29 @@ def test_four_engines_and_their_languages():
     # Every Qwen3 code has the name Qwen3-ASR's prompt uses.
     assert set(qwen3) == set(Qwen3MLXBackend.LANGUAGE_NAMES)
     assert set(ALL_LANGUAGES) == set(whisper) | set(qwen3) | {"ar", "en", "auto"}
+    jais = PROFILES["jais"]
+    assert jais.family == "jais_asr" and not jais.gated and jais.model_id == "IFM/Jais-ASR-MLX-8bit"
+    assert set(jais.languages) == {"ar", "en", "auto", "fr", "es", "it"}
+    # Every Jais code has its language pin ("auto": none, the model names the language).
+    assert set(jais.languages) == set(JaisMLXBackend.LANGUAGE_PINS)
+    assert JaisMLXBackend.LANGUAGE_PINS["auto"] is None
+    assert "*.gguf" in ignore_patterns_for("IFM/Jais-ASR-MLX-8bit")
+
+
+def test_jais_output_cleanup():
+    from navo_engine.asr import clean_jais_output
+
+    assert clean_jais_output("[SY] شو عم تعمل هلق؟") == "شو عم تعمل هلق؟"
+    assert clean_jais_output("[msa] مرحبا بكم") == "مرحبا بكم"
+    assert clean_jais_output("[LB] بدي اعمل deploy عال server") == "بدي اعمل deploy عال server"
+    # The model's way of saying there is no speech: nothing, never the tag.
+    assert clean_jais_output("[IFM-NoTranscript]") == ""
+    assert clean_jais_output(" [IFM-NoTranscript] anything") == ""
+    # A think block and stray special tokens are not part of the transcript.
+    assert clean_jais_output("<ifm|think>\n</ifm|think>[EG] اهلا<|ifm|im_end|>") == "اهلا"
+    # No tag: the text as it is; brackets later in the text stay.
+    assert clean_jais_output("hello [world]") == "hello [world]"
+    assert clean_jais_output("") == ""
 
 
 def test_regional_and_named_languages():
@@ -540,4 +566,5 @@ def test_model_overrides_from_the_command_line():
         "audar": "audarai/Audar-ASR-V1-Turbo",
         "whisper": "/models/whisper",
         "qwen3": "mlx-community/Qwen3-ASR-1.7B-bf16",
+        "jais": "IFM/Jais-ASR-MLX-8bit",
     }

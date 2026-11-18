@@ -8,6 +8,7 @@ enum SpeechEngine: String, CaseIterable, Identifiable {
     case audar
     case whisper
     case qwen3
+    case jais
 
     var id: String { rawValue }
 
@@ -17,6 +18,7 @@ enum SpeechEngine: String, CaseIterable, Identifiable {
         case .audar: return "Audar ASR V1 Turbo"
         case .whisper: return "Whisper Large v3 Turbo"
         case .qwen3: return "Qwen3-ASR 1.7B"
+        case .jais: return "Jais-ASR"
         }
     }
 
@@ -26,6 +28,7 @@ enum SpeechEngine: String, CaseIterable, Identifiable {
         case .audar: return "Audar"
         case .whisper: return "Whisper"
         case .qwen3: return "Qwen3"
+        case .jais: return "Jais"
         }
     }
 
@@ -35,6 +38,8 @@ enum SpeechEngine: String, CaseIterable, Identifiable {
         case .audar: return "audarai/Audar-ASR-V1-Turbo"
         case .whisper: return "mlx-community/whisper-large-v3-turbo-asr-fp16"
         case .qwen3: return "mlx-community/Qwen3-ASR-1.7B-bf16"
+        // The 8-bit MLX build: the most accurate of IFM's Mac builds (WER 22.76%).
+        case .jais: return "IFM/Jais-ASR-MLX-8bit"
         }
     }
 
@@ -45,6 +50,7 @@ enum SpeechEngine: String, CaseIterable, Identifiable {
         case .audar: return "audar-asr-v1-turbo"
         case .whisper: return "whisper-large-v3-turbo"
         case .qwen3: return "qwen3-asr-1.7b"
+        case .jais: return "jais-asr"
         }
     }
 
@@ -57,6 +63,7 @@ enum SpeechEngine: String, CaseIterable, Identifiable {
         case .audar: return 4.7
         case .whisper: return 1.6
         case .qwen3: return 4.1
+        case .jais: return 7.0
         }
     }
 
@@ -67,16 +74,17 @@ enum SpeechEngine: String, CaseIterable, Identifiable {
         case .audar: return "Speech to text: Arabic dialects, English"
         case .whisper: return "Speech to text: English, 100 languages"
         case .qwen3: return "Speech to text: English, 30 languages"
+        case .jais: return "Speech to text: Arabic dialects of 19 countries, English"
         }
     }
 
-    /// Languages Navo asks for. Audar, Whisper and Qwen3 can also detect the language
-    /// themselves (and through the API they take many more languages); Audar's dialect (Gulf,
-    /// Egyptian, Levantine, Maghrebi, MSA) always comes from the audio.
+    /// Languages Navo asks for. Audar, Whisper, Qwen3 and Jais can also detect the language
+    /// themselves (and through the API they take more languages); Audar's and Jais's dialect
+    /// (Gulf, Egyptian, Levantine, Maghrebi, MSA) always comes from the audio.
     var languages: [DictationLanguage] {
         switch self {
         case .cohere: return [.ar, .en]
-        case .audar, .whisper, .qwen3: return [.ar, .en, .auto]
+        case .audar, .whisper, .qwen3, .jais: return [.ar, .en, .auto]
         }
     }
 
@@ -85,11 +93,13 @@ enum SpeechEngine: String, CaseIterable, Identifiable {
         case .cohere:
             return "Arabic dialects and English. Gated on Hugging Face: needs a Read token once to download."
         case .audar:
-            return "Qwen3-ASR based, first on the Open Universal Arabic ASR leaderboard. Public, about 4.7 GB, AudarAI Community License."
+            return "Qwen3-ASR based, near the top of the Open Universal Arabic ASR leaderboard. Public, about 4.7 GB, AudarAI Community License."
         case .whisper:
             return "OpenAI's Whisper, fast and strong in English, 99 other languages too. Public, about 1.6 GB, MIT License."
         case .qwen3:
             return "Alibaba's Qwen3-ASR, strong in English and 29 other languages, 16 bit. Public, about 4.1 GB, Apache 2.0."
+        case .jais:
+            return "IFM's Jais-ASR, the lowest error rate on the Open Universal Arabic ASR leaderboard: MSA and the dialects of 19 Arab countries, Levantine included, with English kept in its own letters. 8 bit. Public, about 7 GB, Apache 2.0. Best with 16 GB of memory or more."
         }
     }
 
@@ -103,6 +113,7 @@ enum SpeechEngine: String, CaseIterable, Identifiable {
         if name.contains("audar") { return .audar } // before qwen3: Audar is a Qwen3-ASR fine-tune
         if name.contains("whisper") { return .whisper }
         if name.contains("qwen3") { return .qwen3 }
+        if name.contains("jais") { return .jais }
         return .cohere
     }
 }

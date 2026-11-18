@@ -10,14 +10,15 @@
 #                     default: audarai/Audar-ASR-V1-Turbo (public, no account needed)
 #                     two engines: "CohereLabs/cohere-transcribe-arabic-07-2026 audarai/Audar-ASR-V1-Turbo"
 #                     the others: mlx-community/whisper-large-v3-turbo-asr-fp16,
-#                     mlx-community/Qwen3-ASR-1.7B-bf16
+#                     mlx-community/Qwen3-ASR-1.7B-bf16, IFM/Jais-ASR-MLX-8bit (Jais-ASR also
+#                     gets mlx-vlm with IFM's patch, see add-jais.sh)
 #   NAVO_ASR_MODEL    older name for a single speech model
 #   NAVO_LLM_MODEL    local cleanup model, default: mlx-community/Qwen3-4B-Instruct-2507-4bit
 #   NAVO_SKIP_LLM=1   skip downloading the cleanup model
 #   NAVO_EXTRA_MODELS more models to download, space separated, for example the language models
 #                     for AI writing (the app downloads them from Settings > AI writing):
 #                     "mlx-community/gemma-4-e4b-it-4bit mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
-#   HF_TOKEN          Hugging Face token (Cohere is gated; Audar, Whisper and Qwen3-ASR are public)
+#   HF_TOKEN          Hugging Face token (Cohere is gated; Audar, Whisper, Qwen3-ASR and Jais-ASR are public)
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -101,6 +102,14 @@ for name in ("mlx_audio", "mlx_lm", "transformers", "torch", "fastapi", "uvicorn
 import torch, transformers, mlx_audio
 print(f"torch {torch.__version__} (mps={torch.backends.mps.is_available()}), transformers {transformers.__version__}")
 PY
+
+# Jais-ASR runs on mlx-vlm with IFM's patch: added when a Jais model is asked for, or kept up
+# to date when the engine has it already. A problem here leaves the other engines working.
+if echo "$ASR_MODELS" | grep -qi "jais" || "$VENV/bin/python" -c "import importlib.util as u; exit(u.find_spec('mlx_vlm') is None)" 2>/dev/null; then
+  progress 0.31 "Adding Jais-ASR support"
+  bash "$SRC_DIR/add-jais.sh" | sed '/^NAVO_PROGRESS/d' \
+    || echo "WARNING: Jais-ASR support could not be added. The other engines work; try Download next to Jais-ASR again later."
+fi
 
 export PYTHONPATH="$SRC_DIR"
 set -- $ASR_MODELS

@@ -19,6 +19,10 @@ Whisper Large v3 Turbo (family ``whisper``):
 
 * ``mlx``: mlx-audio's Whisper port, one 30 second window per call, without timestamps.
 
+Jais-ASR (family ``jais_asr``, IFM's Arabic model: MSA and 19 countries' dialects):
+
+* ``mlx``: mlx-vlm with IFM's Jais-ASR patch, which ``add-jais.sh`` adds to the engine.
+
 Every call into a backend runs on the single worker thread owned by the server
 (MLX streams are thread local), so this module does no locking of its own.
 """
@@ -462,6 +466,110 @@ class WhisperMLXBackend:
             self._mx.clear_cache()
 
 
+# Jais-ASR's leading decision: "[EG] text", "[msa] text", or "[IFM-NoTranscript]" when the model
+# hears no speech it can transcribe. The rule of the model's own postprocess.py: leading short
+# bracketed spans are metadata, a span starting with "IF" means no transcript.
+_JAIS_SPAN = re.compile(r"[ \t]*\[([^\]\n]{0,64})\]")
+_JAIS_SPECIAL = re.compile(r"<\|?ifm\|[^<>]{0,32}>")
+
+
+def clean_jais_output(text: str) -> str:
+    """The transcript in a Jais-ASR generation, without its language tag ("" when it abstained)."""
+    text = text or ""
+    head = text.lstrip()
+    if head.startswith("<ifm|think>"):
+        text = head[len("<ifm|think>"):]
+    end = text.find("</ifm|think>")
+    if end >= 0:
+        text = text[end + len("</ifm|think>"):]
+    pos = 0
+    while pos <= 160:
+        match = _JAIS_SPAN.match(text, pos)
+        if not match:
+            break
+        if match.group(1).strip()[:2].upper() == "IF":
+            return ""
+        pos = match.end()
+    text = _JAIS_SPECIAL.sub(" ", text[pos:])
+    return collapse_loops(_SPACES.sub(" ", text)).strip()
+
+
+class JaisMLXBackend:
+    """Jais-ASR (IFM) on MLX through mlx-vlm with IFM's Jais-ASR patch (see add-jais.sh).
+
+    Arabic as it is spoken (MSA and 19 countries' dialects) with English, French, Spanish and
+    Italian mixed in. The audio encoder is Qwen3-Omni's and the decoder Jais-3's.
+    """
+
+    name = "mlx"
+    device = "Apple GPU (MLX)"
+    # The model takes up to 5 minutes at once, but its scores are for short pieces and a long
+    # piece needs many tokens in one answer: the service hands it pieces cut at pauses, like the
+    # others, so a slip stays in one piece.
+    max_seconds = 28.0
+    # The model card's 256 with room for fast speech and code-switching (a tag is 3 tokens).
+    MAX_TOKENS_PER_CHUNK = 320
+    # The model card's settings: greedy, and a light penalty against decoding loops.
+    REPETITION_PENALTY = 1.05
+    # Request language -> the model's language pin. "ar" keeps every Arabic tag, so the model
+    # still chooses the dialect; None lets it name the language itself.
+    LANGUAGE_PINS = {"auto": None, "ar": "ar", "en": "en", "fr": "fr", "es": "es", "it": "it"}
+
+    def __init__(self, model_dir: Path):
+        import mlx.core as mx
+
+        try:
+            from mlx_vlm import generate, load
+            from mlx_vlm.prompt_utils import apply_chat_template
+            import mlx_vlm.models.jais_asr  # noqa: F401  (only in the patched mlx-vlm)
+        except ImportError as exc:
+            raise RuntimeError(
+                "Jais-ASR support is missing from the engine. Download Jais-ASR again in "
+                "Settings > Speech engines (it adds what the model needs first)."
+            ) from exc
+
+        self._mx = mx
+        self._generate_fn = generate
+        # trust_remote_code: the model's own processor (processing_jais_asr.py) turns audio into
+        # the encoder's input and expands the audio placeholder.
+        self._model, self._processor = load(str(model_dir), trust_remote_code=True)
+        # code_switch: English, French, Spanish and Italian words stay in their own script, as
+        # spoken ("الـ API"), instead of being written in Arabic letters.
+        self._prompt = apply_chat_template(
+            self._processor, self._model.config, "", num_audios=1, code_switch=True
+        )
+
+    def _generate(self, audio: np.ndarray, language: str, max_tokens: int) -> str:
+        options = {}
+        pin = self.LANGUAGE_PINS.get(language, language)
+        if pin is not None:
+            options["language"] = pin
+        result = self._generate_fn(
+            self._model,
+            self._processor,
+            self._prompt,
+            audio=[np.asarray(audio, dtype=np.float32)],
+            max_tokens=max_tokens,
+            temperature=0.0,
+            repetition_penalty=self.REPETITION_PENALTY,
+            verbose=False,
+            **options,
+        )
+        return getattr(result, "text", result if isinstance(result, str) else "") or ""
+
+    def warm_up(self) -> None:
+        try:
+            self._generate(np.zeros(SAMPLE_RATE, dtype=np.float32), "auto", max_tokens=4)
+        finally:
+            self._mx.clear_cache()
+
+    def transcribe(self, audio: np.ndarray, language: str) -> str:
+        try:
+            return clean_jais_output(self._generate(audio, language, self.MAX_TOKENS_PER_CHUNK))
+        finally:
+            self._mx.clear_cache()
+
+
 BACKENDS: dict[str, Callable[[Path], Backend]] = {
     "mlx": MLXBackend,
     "transformers": TransformersBackend,
@@ -471,6 +579,7 @@ BACKENDS_BY_FAMILY: dict[str, dict[str, Callable[[Path], Backend]]] = {
     "cohere_asr": BACKENDS,
     "qwen3_asr": {"mlx": Qwen3MLXBackend},
     "whisper": {"mlx": WhisperMLXBackend},
+    "jais_asr": {"mlx": JaisMLXBackend},
 }
 
 

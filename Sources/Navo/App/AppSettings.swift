@@ -4,7 +4,7 @@ import Foundation
 enum DictationLanguage: String, CaseIterable, Identifiable {
     case ar
     case en
-    /// The model names the language itself (Audar, Whisper and Qwen3; not Cohere).
+    /// The model names the language itself (Audar, Whisper, Qwen3 and Jais; not Cohere).
     case auto
 
     var id: String { rawValue }
@@ -224,6 +224,8 @@ final class AppSettings: ObservableObject {
         static let whisperModel = "whisperModel"
         static let qwen3Enabled = "qwen3Enabled"
         static let qwen3Model = "qwen3Model"
+        static let jaisEnabled = "jaisEnabled"
+        static let jaisModel = "jaisModel"
         static let idleMinutes = "engineIdleMinutes"
         static let aiWithSpeech = "aiWithSpeech"
         static let meetingSource = "meetingSource"
@@ -327,6 +329,8 @@ final class AppSettings: ObservableObject {
     @Published var whisperModel: String { didSet { defaults.set(whisperModel, forKey: Key.whisperModel) } }
     @Published var qwen3Enabled: Bool { didSet { defaults.set(qwen3Enabled, forKey: Key.qwen3Enabled) } }
     @Published var qwen3Model: String { didSet { defaults.set(qwen3Model, forKey: Key.qwen3Model) } }
+    @Published var jaisEnabled: Bool { didSet { defaults.set(jaisEnabled, forKey: Key.jaisEnabled) } }
+    @Published var jaisModel: String { didSet { defaults.set(jaisModel, forKey: Key.jaisModel) } }
     /// Free a model's memory after this many minutes without use (0 keeps models loaded).
     @Published var idleMinutes: Int { didSet { defaults.set(idleMinutes, forKey: Key.idleMinutes) } }
     /// The speech models stay in memory while a language model writes, so live text and file
@@ -425,6 +429,8 @@ final class AppSettings: ObservableObject {
             Key.whisperModel: SpeechEngine.whisper.defaultModel,
             Key.qwen3Enabled: false,
             Key.qwen3Model: SpeechEngine.qwen3.defaultModel,
+            Key.jaisEnabled: false,
+            Key.jaisModel: SpeechEngine.jais.defaultModel,
             Key.idleMinutes: 10,
             Key.meetingSource: MeetingSource.both.rawValue,
             Key.meetingPartMinutes: 5,
@@ -472,6 +478,8 @@ final class AppSettings: ObservableObject {
         whisperModel = defaults.string(forKey: Key.whisperModel) ?? SpeechEngine.whisper.defaultModel
         qwen3Enabled = defaults.bool(forKey: Key.qwen3Enabled)
         qwen3Model = defaults.string(forKey: Key.qwen3Model) ?? SpeechEngine.qwen3.defaultModel
+        jaisEnabled = defaults.bool(forKey: Key.jaisEnabled)
+        jaisModel = defaults.string(forKey: Key.jaisModel) ?? SpeechEngine.jais.defaultModel
         idleMinutes = max(0, defaults.integer(forKey: Key.idleMinutes))
         aiWithSpeech = defaults.bool(forKey: Key.aiWithSpeech)
         meetingSource = MeetingSource(rawValue: defaults.string(forKey: Key.meetingSource) ?? "") ?? .both
@@ -552,6 +560,7 @@ final class AppSettings: ObservableObject {
         if let fixed = repair(audarModel, SpeechEngine.audar.defaultModel) { audarModel = fixed }
         if let fixed = repair(whisperModel, SpeechEngine.whisper.defaultModel) { whisperModel = fixed }
         if let fixed = repair(qwen3Model, SpeechEngine.qwen3.defaultModel) { qwen3Model = fixed }
+        if let fixed = repair(jaisModel, SpeechEngine.jais.defaultModel) { jaisModel = fixed }
         if let fixed = repair(localLLMModel, Self.defaultLLMModel) { localLLMModel = fixed }
         if let fixed = repair(gemmaModel, WritingModel.gemma.defaultModel) { gemmaModel = fixed }
         if let fixed = repair(llamaModel, WritingModel.llama.defaultModel) { llamaModel = fixed }
@@ -613,6 +622,7 @@ final class AppSettings: ObservableObject {
         case .audar: return audarEnabled
         case .whisper: return whisperEnabled
         case .qwen3: return qwen3Enabled
+        case .jais: return jaisEnabled
         }
     }
 
@@ -622,6 +632,7 @@ final class AppSettings: ObservableObject {
         case .audar: audarEnabled = enabled
         case .whisper: whisperEnabled = enabled
         case .qwen3: qwen3Enabled = enabled
+        case .jais: jaisEnabled = enabled
         }
     }
 
@@ -678,6 +689,7 @@ final class AppSettings: ObservableObject {
         case .audar: return Self.modelID(audarModel, default: engine.defaultModel)
         case .whisper: return Self.modelID(whisperModel, default: engine.defaultModel)
         case .qwen3: return Self.modelID(qwen3Model, default: engine.defaultModel)
+        case .jais: return Self.modelID(jaisModel, default: engine.defaultModel)
         }
     }
 }

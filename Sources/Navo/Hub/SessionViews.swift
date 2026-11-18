@@ -148,8 +148,8 @@ struct TranscriptionOptions: View {
         switch settings.jobEngineInUse {
         case .cohere:
             return "Arabic covers every dialect, with English mixed in."
-        case .audar:
-            return "Auto lets Audar detect the language. The Arabic dialect always comes from the audio."
+        case .audar, .jais:
+            return "Auto lets \(settings.jobEngineInUse.shortName) detect the language. The Arabic dialect always comes from the audio."
         case .whisper, .qwen3:
             return "Auto lets \(settings.jobEngineInUse.shortName) detect the language. Arabic covers every dialect."
         }

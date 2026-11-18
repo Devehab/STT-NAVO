@@ -26,7 +26,7 @@
 
 <p align="center"><img src="docs/demo-en.gif" width="560" alt="Hold the key, speak, let go: Navo listens, writes the sentence on your Mac and pastes it into the app you are in"></p>
 
-Navo is an open source voice keyboard for macOS in the spirit of Wispr Flow. Hold a key, speak naturally, let go, and Navo pastes clean text into whatever app you are typing in. Speech recognition runs on your Mac with your choice of four open models: two for Arabic, **Cohere Transcribe Arabic** and **Audar ASR V1 Turbo**, and two multilingual ones that are strongest in English, **Whisper Large v3 Turbo** and **Qwen3-ASR 1.7B**. A small local model tidies each transcript, and summaries and rewrites are written on your Mac too, by **Gemma 4** (Google) or **Llama 3.1** (Meta). After a one-time model download, nothing leaves your computer.
+Navo is an open source voice keyboard for macOS in the spirit of Wispr Flow. Hold a key, speak naturally, let go, and Navo pastes clean text into whatever app you are typing in. Speech recognition runs on your Mac with your choice of five open models: three for Arabic, **Jais-ASR**, **Cohere Transcribe Arabic** and **Audar ASR V1 Turbo**, and two multilingual ones that are strongest in English, **Whisper Large v3 Turbo** and **Qwen3-ASR 1.7B**. A small local model tidies each transcript, and summaries and rewrites are written on your Mac too, by **Gemma 4** (Google) or **Llama 3.1** (Meta). After a one-time model download, nothing leaves your computer.
 
 | | |
 | --- | --- |
@@ -62,7 +62,7 @@ The dictation built into your Mac and your iPhone is free and handy for a short 
 - **Two languages in one sentence**: say *staging* or *release* inside an Arabic sentence and it comes out in English letters.
 - **Clean text, not a raw transcript**: a small model on your Mac adds the punctuation and drops the filler words, without translating or changing your dialect.
 
-Audar ASR V1 Turbo and Cohere Transcribe Arabic, both in Navo, rank first and second on the [Open Universal Arabic ASR Leaderboard](https://huggingface.co/spaces/elmresearchcenter/open_universal_arabic_asr_leaderboard), as their makers report, at about 23% and 26% average word error rate. Whisper Large v3, the model many dictation apps are built on, is at about 37% on the same tests.
+Jais-ASR, Audar ASR V1 Turbo and Cohere Transcribe Arabic, all three in Navo, are at the top of the [Open Universal Arabic ASR Leaderboard](https://huggingface.co/spaces/elmresearchcenter/open_universal_arabic_asr_leaderboard), as their makers report, at about 22.8%, 23% and 26% average word error rate. Jais-ASR covers the dialects of 19 Arab countries and is the strongest of them on Levantine (Syrian, Lebanese, Jordanian, Palestinian) speech. Whisper Large v3, the model many dictation apps are built on, is at about 37% on the same tests.
 
 | | Built-in dictation (Mac, iPhone) | Paid dictation apps | **Navo** |
 | --- | --- | --- | --- |
@@ -82,7 +82,7 @@ Audar ASR V1 Turbo and Cohere Transcribe Arabic, both in Navo, rank first and se
 - **See the words while you talk**: the text appears in a small card above the Flow Bar as you speak, the finished phrases bright and the one you are saying dimmer. Each phrase is transcribed when you pause, so a long dictation is in almost as soon as you let go. Short ones are still transcribed again in one go, so nothing is lost in accuracy. It can be turned off in Settings.
 - **Arabic first**: MSA, dialects and Arabic-English code-switching. Cleanup keeps your dialect and never translates.
 - **Switch the language in a second**: press Control + Option + L in any app (or record your own shortcut in Settings), use the switch on Home or the AR / EN button on the Flow Bar, even while you talk. Cohere takes Arabic or English; Audar, Whisper and Qwen3 also have Auto, where the model detects the language itself (Audar always picks up the Arabic dialect from the audio).
-- **Four speech engines, two on at a time**: Cohere Transcribe Arabic and Audar ASR V1 Turbo for Arabic dialects, Whisper Large v3 Turbo (100 languages, fast, 1.6 GB) and Qwen3-ASR 1.7B (30 languages) for English and other languages. Pick one for dictation and keep one more on for meetings, files or other apps through the API. Each model takes 1.6 to 4.7 GB while loaded, so a third can be turned on once one of the two is off.
+- **Five speech engines, two on at a time**: Jais-ASR, Cohere Transcribe Arabic and Audar ASR V1 Turbo for Arabic dialects, Whisper Large v3 Turbo (100 languages, fast, 1.6 GB) and Qwen3-ASR 1.7B (30 languages) for English and other languages. Pick one for dictation and keep one more on for meetings, files or other apps through the API. Each model takes 1.6 to 7 GB while loaded, so a third can be turned on once one of the two is off.
 - **Compare engines**: run any recording or audio file through the two engines that are on and see both transcripts side by side, in the app or with one API call.
 - **Notetaker, for meetings, with live text**: record a Google Meet, Zoom or any call with what your Mac plays, your microphone, or both. The text appears while the meeting goes on: every minute or so (30 seconds to 5 minutes, your choice) the newest piece is cut at a pause and transcribed by the engine you choose. Pause and resume; the audio is saved to disk in parts every 3 or 5 minutes, so a crash loses at most the last part, and becomes one recording when you stop.
 - **Cuts that never split a word**: long audio is only ever cut inside a real pause. Navo looks up to 10 seconds before and after each target point for a stretch where nobody speaks (at least 300 ms, measured against the background noise around it), prefers the longest and cleanest one, and cuts in its middle. Silent pieces are not sent at all, so the models cannot invent text for them. The engine uses the same method to fit pieces into each model.
@@ -107,7 +107,7 @@ Hold key ─► AVAudioEngine (16 kHz mono) ─► WAV
                                             │
                      Navo engine on 127.0.0.1:7861 (Python, started by the app)
                                             │
-          Cohere, Audar, Whisper or Qwen3-ASR (MLX) ─► raw transcript
+    Jais, Cohere, Audar, Whisper or Qwen3-ASR (MLX) ─► raw transcript
                                             │
           Local LLM cleanup (Qwen3 4B via MLX) ─► clean text
                                             │
@@ -118,7 +118,7 @@ AI button ─► the speech models leave memory ─► Gemma 4 or Llama 3.1 (MLX
 
 The engine is two processes: a small gateway that always listens on 7861, and a models process that the gateway starts when a model is needed and stops after the idle time. Navo wakes it the moment you start talking, so the model loads while you speak.
 
-The macOS app is native Swift (SwiftUI + AppKit). The engine is a small FastAPI server with OpenAI-compatible endpoints (`/cohere/v1/audio/transcriptions`, `/audar/v1/audio/transcriptions`, `/whisper/v1/audio/transcriptions`, `/qwen3/v1/audio/transcriptions`, `/v1/audio/compare`, `/gemma/v1/chat/completions`, `/llama/v1/chat/completions`, `/v1/chat/completions`, `/health`), so you can also point cleanup at Ollama or LM Studio.
+The macOS app is native Swift (SwiftUI + AppKit). The engine is a small FastAPI server with OpenAI-compatible endpoints (`/cohere/v1/audio/transcriptions`, `/audar/v1/audio/transcriptions`, `/whisper/v1/audio/transcriptions`, `/qwen3/v1/audio/transcriptions`, `/jais/v1/audio/transcriptions`, `/v1/audio/compare`, `/gemma/v1/chat/completions`, `/llama/v1/chat/completions`, `/v1/chat/completions`, `/health`), so you can also point cleanup at Ollama or LM Studio.
 
 ## Install
 
@@ -198,6 +198,7 @@ The local engine is an OpenAI-compatible HTTP API on `http://127.0.0.1:7861`: se
 | Audar ASR V1 Turbo | `http://127.0.0.1:7861/audar/v1` | [docs/API-Audar.md](docs/API-Audar.md) |
 | Whisper Large v3 Turbo | `http://127.0.0.1:7861/whisper/v1` | [docs/API-Whisper.md](docs/API-Whisper.md) |
 | Qwen3-ASR 1.7B | `http://127.0.0.1:7861/qwen3/v1` | [docs/API-Qwen3.md](docs/API-Qwen3.md) |
+| Jais-ASR | `http://127.0.0.1:7861/jais/v1` | [docs/API-Jais.md](docs/API-Jais.md) |
 | Gemma 4 E4B (language model) | `http://127.0.0.1:7861/gemma/v1` | [docs/API-LLM.md](docs/API-LLM.md) |
 | Llama 3.1 8B (language model) | `http://127.0.0.1:7861/llama/v1` | [docs/API-LLM.md](docs/API-LLM.md) |
 
@@ -309,6 +310,7 @@ lsof -nP -iTCP -sTCP:LISTEN | grep 7861
 - [Audar ASR V1 Turbo](https://huggingface.co/audarai/Audar-ASR-V1-Turbo) by AudarAI, AudarAI Community License v1.0
 - [Whisper Large v3 Turbo](https://huggingface.co/openai/whisper-large-v3-turbo) by OpenAI, MIT, in [mlx-community's MLX build](https://huggingface.co/mlx-community/whisper-large-v3-turbo-asr-fp16)
 - [Qwen3-ASR 1.7B](https://huggingface.co/Qwen/Qwen3-ASR-1.7B) by the Qwen team at Alibaba, Apache 2.0, in [mlx-community's MLX build](https://huggingface.co/mlx-community/Qwen3-ASR-1.7B-bf16)
+- [Jais-ASR](https://huggingface.co/IFM/Jais-ASR) by IFM, Apache 2.0, in [IFM's 8 bit MLX build](https://huggingface.co/IFM/Jais-ASR-MLX-8bit), run with [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) and IFM's Jais-ASR patch
 - [Gemma 4 E4B](https://huggingface.co/google/gemma-4-E4B-it) by Google, Apache 2.0, in [mlx-community's 4 bit MLX build](https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit)
 - [Llama 3.1 8B Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) by Meta, Llama 3.1 Community License, in [mlx-community's 4 bit MLX build](https://huggingface.co/mlx-community/Meta-Llama-3.1-8B-Instruct-4bit)
 - [mlx-audio](https://github.com/Blaizzy/mlx-audio) and [mlx-lm](https://github.com/ml-explore/mlx-lm) for Apple Silicon inference

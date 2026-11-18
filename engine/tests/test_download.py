@@ -83,3 +83,25 @@ def test_expected_size_skips_ignored_files(monkeypatch):
     monkeypatch.setattr(HfApi, "model_info", lambda self, repo, files_metadata=True, token=None: SimpleNamespace(siblings=siblings))
     total = expected_size("audarai/Audar-ASR-V1-Turbo", None, ignore_patterns_for("audarai/Audar-ASR-V1-Turbo"))
     assert total == 6_000 + 4_698_521_568 + 11_000_000
+
+
+def test_a_download_that_does_not_fit_is_refused_before_it_starts():
+    from navo_engine.download import SPARE_BYTES, space_problem
+
+    gb = 1_000_000_000
+    # Jais-ASR (7 GB) on a Mac with 3 GB free: refused, with the numbers.
+    problem = space_problem(7 * gb, 0, 3 * gb)
+    assert problem and "7.00 GB more" in problem and "3.00 GB free" in problem
+    # Enough room, with 1 GB spare.
+    assert space_problem(7 * gb, 0, 8 * gb + SPARE_BYTES) is None
+    # A download that stopped halfway only needs the rest.
+    assert space_problem(7 * gb, 5 * gb, 3 * gb + SPARE_BYTES) is None
+    # Sizes unknown: no guess, the download is tried as before.
+    assert space_problem(0, 0, 1) is None
+    assert space_problem(7 * gb, 0, None) is None
+
+
+def test_free_space_is_measured_on_the_nearest_folder_that_exists(tmp_path):
+    from navo_engine.download import free_bytes
+
+    assert free_bytes(tmp_path / "models--x--y" / "blobs") > 0

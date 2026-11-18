@@ -16,7 +16,7 @@ class EngineProfile:
     id: str
     name: str
     model_id: str
-    family: str  # which backends can run it: "cohere_asr", "qwen3_asr" or "whisper"
+    family: str  # which backends can run it: "cohere_asr", "qwen3_asr", "whisper" or "jais_asr"
     gated: bool
     # Files the engine never needs, skipped when downloading (GGUF and vLLM builds of the same model).
     ignore_patterns: tuple[str, ...] = ()
@@ -89,7 +89,21 @@ QWEN3 = EngineProfile(
     aliases=("qwen3-asr", "qwen3-asr-1.7b", "qwen3-asr-1.7b-bf16", "qwen3-asr-1.7b-fp16"),
 )
 
-PROFILES: dict[str, EngineProfile] = {p.id: p for p in (COHERE, AUDAR, WHISPER, QWEN3)}
+JAIS = EngineProfile(
+    id="jais",
+    name="Jais-ASR",
+    # The 8-bit MLX build: the most accurate of IFM's Mac builds (WER 22.76%, a hair better than
+    # the full-size model's 22.85%), 7 GB. Its audio encoder stays in full precision.
+    model_id="IFM/Jais-ASR-MLX-8bit",
+    family="jais_asr",
+    gated=False,
+    ignore_patterns=("*.gguf", "*.patch", "assets/*"),
+    # Arabic (MSA and the dialects of 19 countries) mixed with English, French, Spanish and Italian.
+    languages=("ar", "en", "auto", "fr", "es", "it"),
+    aliases=("jais-asr", "jais-asr-mlx-8bit", "jais-asr-mlx", "ifm-jais-asr"),
+)
+
+PROFILES: dict[str, EngineProfile] = {p.id: p for p in (COHERE, AUDAR, WHISPER, QWEN3, JAIS)}
 
 # Engines that may be turned on at once. The others stay off: they never load and the API
 # answers 503 for them until one of the two is turned off.
@@ -111,6 +125,23 @@ def limit_message(enabled: list[str] | tuple[str, ...] | set[str], engine_id: st
         f"Only {MAX_ENABLED_ENGINES} speech engines can be on at once, and {' and '.join(on)} are on. "
         f"Turn one off first (POST /v1/engines/{{engine}}/disable), then turn on {name}."
     )
+
+
+def jais_runtime_version() -> Optional[str]:
+    """mlx-vlm's version when the engine can run Jais-ASR (mlx-vlm with IFM's patch), else None.
+
+    Checked on disk without importing mlx-vlm: the gateway reports it while no model is loaded.
+    """
+    from importlib import metadata
+    from pathlib import Path
+
+    try:
+        dist = metadata.distribution("mlx-vlm")
+        if Path(dist.locate_file("mlx_vlm/models/jais_asr/__init__.py")).exists():
+            return dist.version
+    except Exception:
+        pass
+    return None
 
 
 def ignore_patterns_for(model_id: str) -> list[str]:

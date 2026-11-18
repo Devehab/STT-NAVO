@@ -61,6 +61,37 @@ def gb(n: int) -> str:
     return f"{n / 1e9:.2f}"
 
 
+# Room left over after a download: a Mac with a full disk stops saving files, apps and recordings.
+SPARE_BYTES = 1_000_000_000
+
+
+def free_bytes(path: Path) -> int | None:
+    """Free space on the volume that holds `path` (or its nearest existing parent)."""
+    import shutil
+
+    probe = path
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    try:
+        return shutil.disk_usage(probe).free
+    except OSError:
+        return None
+
+
+def space_problem(total: int, have: int, free: int | None) -> str | None:
+    """Why a download of `total` bytes, `have` of them already on disk, can't fit; None when it can."""
+    if not total or free is None:
+        return None  # sizes unknown: try, as before
+    needed = max(0, total - have) + SPARE_BYTES
+    if free >= needed:
+        return None
+    return (
+        f"Not enough free space: this download needs {gb(needed - SPARE_BYTES)} GB more and the Mac has "
+        f"{gb(free)} GB free (Navo keeps 1 GB spare). Free some space, for example in Downloads or the "
+        "Trash, then click Download again."
+    )
+
+
 def fail(message: str) -> int:
     print(f"ERROR: {message}", file=sys.stderr, flush=True)
     return 3
@@ -149,6 +180,10 @@ def main(argv: list[str] | None = None) -> int:
     total = expected_size(args.model, token, ignore)
     blobs = repo_cache_dir(args.model) / "blobs"
     baseline = dir_size(blobs)
+    problem = space_problem(total, baseline, free_bytes(blobs))
+    if problem:
+        print(f"ERROR: {problem}", file=sys.stderr, flush=True)
+        return 4
     emit(args.progress_start, f"{args.label} ({args.model})")
 
     done = threading.Event()

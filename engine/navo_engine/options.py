@@ -41,6 +41,7 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--audar-model", default=None, help="Audar model id or folder")
     parser.add_argument("--whisper-model", default=None, help="Whisper model id or folder")
     parser.add_argument("--qwen3-model", default=None, help="Qwen3-ASR model id or folder")
+    parser.add_argument("--jais-model", default=None, help="Jais-ASR model id or folder")
     parser.add_argument("--llm-model", default=DEFAULT_LLM_MODEL, help="The small cleanup model")
     parser.add_argument("--gemma-model", default=None, help="Gemma model id or folder (language model)")
     parser.add_argument("--llama-model", default=None, help="Llama model id or folder (language model)")
@@ -74,7 +75,13 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 # The option that sets each engine's model.
-MODEL_OPTIONS = {"cohere": "asr_model", "audar": "audar_model", "whisper": "whisper_model", "qwen3": "qwen3_model"}
+MODEL_OPTIONS = {
+    "cohere": "asr_model",
+    "audar": "audar_model",
+    "whisper": "whisper_model",
+    "qwen3": "qwen3_model",
+    "jais": "jais_model",
+}
 
 
 def model_overrides(args: argparse.Namespace) -> dict[str, str]:

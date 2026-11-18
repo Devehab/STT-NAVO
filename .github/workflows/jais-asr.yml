@@ -1,0 +1,93 @@
+# Checks Jais-ASR end to end on a clean Apple Silicon Mac: Navo's engine installed the way the app
+# installs it (setup-engine.sh, which adds mlx-vlm with IFM's Jais-ASR patch), the model
+# downloaded, the engine started with Jais, and docs/check-jais.py run against its API: real
+# recordings, error rates, language detection, silence, the OpenAI route.
+# The 8-bit build is the one Navo uses. The 4-bit build runs the same code in less memory.
+name: Jais-ASR check
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - engine/navo_engine/asr.py
+      - engine/navo_engine/engines.py
+      - engine/add-jais.sh
+      - engine/jais/**
+      - engine/setup-engine.sh
+      - docs/check-jais.py
+      - .github/workflows/jais-asr.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jais-asr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.model }}
+    runs-on: macos-15
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [IFM/Jais-ASR-MLX-8bit, IFM/Jais-ASR-MLX-4bit]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The Mac it runs on
+        run: |
+          echo "NAVO_SUPPORT_DIR=$RUNNER_TEMP/navo" >> "$GITHUB_ENV"
+          echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/pycache" >> "$GITHUB_ENV"
+          sw_vers
+          sysctl -n machdep.cpu.brand_string
+          echo "Memory: $(( $(sysctl -n hw.memsize) / 1073741824 )) GB"
+          df -h "$HOME"
+
+      - name: Install Navo's engine with Jais-ASR (setup-engine.sh, as the app runs it)
+        env:
+          NAVO_ASR_MODELS: ${{ matrix.model }}
+          NAVO_SKIP_LLM: "1"
+        run: bash engine/setup-engine.sh
+
+      - name: Engine tests
+        run: |
+          PY="$NAVO_SUPPORT_DIR/engine/venv/bin/python"
+          UV="$(command -v uv || echo "$HOME/.local/bin/uv")"
+          "$UV" pip install --python "$PY" --quiet pytest
+          "$PY" -c "import mlx.core as mx; print('MLX', mx.__version__, 'device', mx.default_device(), 'Metal', mx.metal.is_available())"
+          cd engine && "$PY" -m pytest -q
+
+      - name: Start the engine with Jais-ASR on
+        env:
+          MODEL: ${{ matrix.model }}
+        run: |
+          cd engine
+          nohup "$NAVO_SUPPORT_DIR/engine/venv/bin/python" -m navo_engine --port 7861 \
+            --engines jais --default-engine jais --jais-model "$MODEL" --no-preload-llm \
+            > "$RUNNER_TEMP/engine.log" 2>&1 &
+          for i in $(seq 1 60); do curl -fs http://127.0.0.1:7861/health >/dev/null && break; sleep 1; done
+          curl -fs http://127.0.0.1:7861/health | head -c 600; echo
+
+      - name: Check Jais-ASR through the API
+        run: |
+          "$NAVO_SUPPORT_DIR/engine/venv/bin/python" -I docs/check-jais.py --samples docs/audio \
+            --markdown "$RUNNER_TEMP/report.md" --json "$RUNNER_TEMP/report.json"
+
+      - name: Report
+        if: always()
+        run: |
+          { echo "## ${{ matrix.model }}"; cat "$RUNNER_TEMP/report.md" 2>/dev/null || echo "No report: see the engine log."; } >> "$GITHUB_STEP_SUMMARY"
+          tail -n 80 "$RUNNER_TEMP/engine.log" 2>/dev/null || true
+          ls -la "$NAVO_SUPPORT_DIR/Logs" 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jais-report-${{ strategy.job-index }}
+          path: |
+            ${{ runner.temp }}/report.md
+            ${{ runner.temp }}/report.json
+            ${{ runner.temp }}/engine.log
+          if-no-files-found: ignore

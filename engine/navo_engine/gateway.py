@@ -37,7 +37,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from . import DEFAULT_PORT, __version__, package_version
-from .engines import PROFILES, limit_message, too_many_enabled
+from .engines import PROFILES, jais_runtime_version, limit_message, too_many_enabled
 from .llms import LLM_PROFILES, MEMORY_LIMIT_BYTES
 from .models import cached_snapshot, dir_size
 from .custom import gguf_runtime_version, is_available as llm_available
@@ -346,6 +346,7 @@ class Gateway:
                 "idle_minutes": self.idle_minutes,
                 "llm_with_speech": self.together,
                 "gguf_runtime": gguf_runtime_version(),
+                "jais_runtime": jais_runtime_version(),  # mlx-vlm with the Jais-ASR patch
                 "host": self.args.host,
                 "port": self.args.port,
             }
@@ -367,6 +368,7 @@ def default_worker_command(gateway: Gateway, preload_all: bool) -> list[str]:
         "--audar-model", gateway.models["audar"],
         "--whisper-model", gateway.models["whisper"],
         "--qwen3-model", gateway.models["qwen3"],
+        "--jais-model", gateway.models["jais"],
         "--llm-model", args.llm_model,
         "--gemma-model", gateway.llm_models["gemma"],
         "--llama-model", gateway.llm_models["llama"],

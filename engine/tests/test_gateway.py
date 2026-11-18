@@ -72,7 +72,7 @@ def test_starts_asleep_without_a_worker(pythonpath):
         assert health["sleeping"] is True and health["worker_pid"] is None
         assert health["pid"] == os.getpid()
         states = {e["id"]: e["status"] for e in health["engines"]}
-        assert states == {"cohere": "asleep", "audar": "off", "whisper": "off", "qwen3": "off"}
+        assert states == {"cohere": "asleep", "audar": "off", "whisper": "off", "qwen3": "off", "jais": "off"}
         assert health["status"] == "asleep"
         assert client.get("/").status_code == 404  # a stray read does not start the models
         assert gateway.process is None
@@ -166,7 +166,7 @@ def test_only_two_engines_can_be_on(pythonpath):
         r = client.post("/v1/engines/whisper/enable")
         assert r.status_code == 200 and r.json()["status"] == "asleep"
         states = {e["id"]: e["status"] for e in client.get("/health").json()["engines"]}
-        assert states == {"cohere": "asleep", "audar": "off", "whisper": "asleep", "qwen3": "off"}
+        assert states == {"cohere": "asleep", "audar": "off", "whisper": "asleep", "qwen3": "off", "jais": "off"}
 
 
 def test_worker_command_passes_every_model():
@@ -179,6 +179,7 @@ def test_worker_command_passes_every_model():
     assert flags["--whisper-model"] == "mlx-community/whisper-large-v3-turbo-asr-fp16"
     assert flags["--qwen3-model"] == "mlx-community/Qwen3-ASR-1.7B-bf16"
     assert flags["--audar-model"] == "audarai/Audar-ASR-V1-Turbo"
+    assert flags["--jais-model"] == "IFM/Jais-ASR-MLX-8bit"
 
 
 def test_more_than_two_engines_on_the_command_line_is_refused():
