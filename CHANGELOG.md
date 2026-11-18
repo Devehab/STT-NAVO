@@ -3,6 +3,11 @@
 What changed in each version of Navo. The newest is first. The release notes on GitHub and the
 "What's new" part of the website come from here.
 
+## 0.23.1
+
+- **Big models download reliably.** Downloading Jais-ASR (7 GB) could fail again and again with "The read operation timed out", however fast the internet: Hugging Face now stores most models in its Xet storage, and the plain route Navo used to them can wait 20 seconds or more before sending anything, then crawl, while the download gave up after 10 seconds. Navo now uses Hugging Face's own Xet transfer, many parts at once (about 40 MB/s here against under 1 MB/s), waits up to a minute before calling a connection lost, and tries up to six times on its own, switching between Xet and the plain route, keeping the files that finished. A download that sends nothing for 10 minutes stops with a message instead of hanging.
+- Models stay in their own folder in the download cache, so Delete in Settings still frees all their space.
+
 ## 0.23.0
 
 - **Jais-ASR, a fifth speech engine.** IFM's Jais-ASR has the lowest error rate on the Open Universal Arabic ASR leaderboard (22.8% words, 8.3% characters, as IFM reports) and knows Modern Standard Arabic and the dialects of 19 Arab countries, Levantine included. Navo uses its 8-bit build for Macs, the most accurate of IFM's Mac builds (7 GB, public, Apache 2.0). Download it in Settings > Speech engines like the others: Navo adds what it runs on to the engine first (mlx-vlm with IFM's Jais-ASR patch, about 30 MB), then downloads the model and turns it on. Turn it on or off, use it for dictation, meetings and files, or call it at `/jais/v1/audio/transcriptions` ([docs/API-Jais.md](docs/API-Jais.md)).

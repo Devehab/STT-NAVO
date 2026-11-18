@@ -13,10 +13,26 @@ import threading
 import time
 from pathlib import Path
 
-# Plain HTTP downloads write growing *.incomplete files we can measure for progress.
-os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+# Most models are stored with Hugging Face's Xet storage now. Its own transfer (hf_xet) fetches
+# many chunks at once and runs at full speed; the plain-HTTP route to the same files assembles
+# each one on the fly and can wait 20 seconds or more before its first byte, then crawl, so a
+# 5 GB file failed again and again with "The read operation timed out". Xet comes first, plain
+# HTTP is the fallback when it fails (see fetch_with_retries). Both write a growing file in the
+# model's blobs folder, which is what the progress is measured on.
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+# Each model keeps its own files (not a store shared between models): the progress is measured in
+# its folder, and Delete in Navo frees the space by removing that folder.
+os.environ.setdefault("HF_HUB_DISABLE_SHARED_BLOBS", "1")
+# Seconds without data before a connection counts as failed (the library's default is 10).
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "60")
+os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "30")
+
+# Tries before giving up. A failed file starts again (the library drops a partial file), files
+# that finished are kept.
+ATTEMPTS = 6
+# No new byte for this long: the download is stuck, and it is stopped with an error.
+STALL_SECONDS = 600
 
 
 def emit(fraction: float, label: str) -> None:
@@ -90,6 +106,81 @@ def space_problem(total: int, have: int, free: int | None) -> str | None:
         f"{gb(free)} GB free (Navo keeps 1 GB spare). Free some space, for example in Downloads or the "
         "Trash, then click Download again."
     )
+
+
+def is_access_error(exc: BaseException) -> bool:
+    from huggingface_hub.errors import GatedRepoError, HfHubHTTPError, RepositoryNotFoundError
+
+    return isinstance(exc, (GatedRepoError, RepositoryNotFoundError)) or (
+        isinstance(exc, HfHubHTTPError) and getattr(getattr(exc, "response", None), "status_code", 0) in (401, 403)
+    )
+
+
+def set_route(xet: bool) -> None:
+    """Xet's own transfer, or plain HTTP, for the downloads that start after this."""
+    from huggingface_hub import constants
+
+    constants.HF_HUB_DISABLE_XET = not xet
+
+
+def xet_available() -> bool:
+    from importlib.util import find_spec
+
+    return os.environ.get("HF_HUB_DISABLE_XET", "").lower() not in ("1", "true", "yes", "on") and find_spec("hf_xet") is not None
+
+
+def fetch_with_retries(fetch, measure, report, *, attempts: int = ATTEMPTS, stall_seconds: float = STALL_SECONDS,
+                       sleep=time.sleep, poll: float = 2.0, use_xet: bool | None = None):
+    """Runs `fetch()` until it succeeds: (result, None), or (None, the last error).
+
+    `measure()` gives the bytes on disk so far, `report(bytes)` shows them. Between tries it waits a
+    little longer each time and changes route (Xet, then plain HTTP, then Xet again): when one way
+    to Hugging Face is slow or failing from where the Mac is, the other often is not. Access errors
+    (gated model, bad token) are not tried again.
+    """
+    # Without hf_xet (or with it turned off) every try is plain HTTP.
+    can_switch = xet_available() if use_xet is None else True
+    xet = can_switch if use_xet is None else use_xet
+    last: BaseException | None = None
+    for attempt in range(1, attempts + 1):
+        set_route(xet)
+        done = threading.Event()
+        box: dict = {}
+
+        def worker() -> None:
+            try:
+                box["result"] = fetch()
+            except BaseException as exc:  # reported on the main thread
+                box["error"] = exc
+            finally:
+                done.set()
+
+        threading.Thread(target=worker, daemon=True).start()
+        seen, moved = measure(), time.monotonic()
+        while not done.wait(poll):
+            now = measure()
+            report(now)
+            if now != seen:
+                seen, moved = now, time.monotonic()
+            elif time.monotonic() - moved > stall_seconds:
+                box["error"] = TimeoutError(f"no data for {int(stall_seconds / 60)} minutes")
+                break
+        if "error" not in box:
+            return box.get("result"), None
+        last = box["error"]
+        if is_access_error(last) or attempt == attempts:
+            break
+        if isinstance(last, TimeoutError) and not done.is_set():
+            break  # stuck inside the library: this process can't stop that thread, so it ends here
+        wait = min(10 * attempt, 60)
+        if can_switch:
+            xet = not xet
+        route = "Xet" if xet else "plain HTTP"
+        reason = str(last).splitlines()[0][:200] if str(last) else type(last).__name__
+        print(f"Download interrupted ({reason}). Trying again in {wait} s through {route}, "
+              f"try {attempt + 1} of {attempts}: the files that finished are kept.", flush=True)
+        sleep(wait)
+    return None, last
 
 
 def fail(message: str) -> int:
@@ -168,7 +259,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     from huggingface_hub import snapshot_download
-    from huggingface_hub.errors import GatedRepoError, HfHubHTTPError, RepositoryNotFoundError
 
     from .engines import ignore_patterns_for
 
@@ -185,35 +275,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {problem}", file=sys.stderr, flush=True)
         return 4
     emit(args.progress_start, f"{args.label} ({args.model})")
-
-    done = threading.Event()
-    failure: list[BaseException] = []
-    result: list[str] = []
-
-    def worker() -> None:
-        try:
-            result.append(snapshot_download(args.model, token=token, ignore_patterns=ignore))
-        except BaseException as exc:  # reported on the main thread
-            failure.append(exc)
-        finally:
-            done.set()
-
-    threading.Thread(target=worker, daemon=True).start()
     started = time.time()
-    while not done.wait(2.0):
-        current = dir_size(blobs)
-        elapsed = int(time.time() - started)
+
+    def report(current: int) -> None:
         if total:
             frac = min(current / total, 0.999)
             emit(args.progress_start + span * frac, f"{args.label} {gb(current)} / {gb(total)} GB")
         else:
+            elapsed = int(time.time() - started)
             emit(args.progress_start, f"{args.label} {gb(max(0, current - baseline))} GB ({elapsed}s)")
 
-    if failure:
-        exc = failure[0]
-        if isinstance(exc, (GatedRepoError, RepositoryNotFoundError)) or (
-            isinstance(exc, HfHubHTTPError) and getattr(exc.response, "status_code", 0) in (401, 403)
-        ):
+    _, exc = fetch_with_retries(
+        lambda: snapshot_download(args.model, token=token, ignore_patterns=ignore),
+        lambda: dir_size(blobs),
+        report,
+    )
+    if exc is not None:
+        if is_access_error(exc):
             print(
                 "ERROR: Hugging Face refused access to "
                 f"{args.model}.\n"
@@ -224,7 +302,12 @@ def main(argv: list[str] | None = None) -> int:
                 flush=True,
             )
             return 3
-        print(f"ERROR: download failed: {exc}", file=sys.stderr, flush=True)
+        print(
+            f"ERROR: download failed: {exc}. Check the internet connection, then click Download again: "
+            "the files that finished are kept.",
+            file=sys.stderr,
+            flush=True,
+        )
         return 4
 
     # Say "done" only when the engine will find the model: the same check it makes before loading.
@@ -234,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
     if found is None:
         print(
             f"ERROR: the download of {args.model} finished, but its files are incomplete in {repo_cache_dir(args.model)}. "
-            "Click Download again: it continues where it stopped. If it keeps failing, check the free disk space.",
+            "Click Download again: the files that finished are kept. If it keeps failing, check the free disk space.",
             file=sys.stderr,
             flush=True,
         )

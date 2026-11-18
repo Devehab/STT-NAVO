@@ -105,3 +105,76 @@ def test_free_space_is_measured_on_the_nearest_folder_that_exists(tmp_path):
     from navo_engine.download import free_bytes
 
     assert free_bytes(tmp_path / "models--x--y" / "blobs") > 0
+
+
+def test_a_failed_download_is_tried_again_through_the_other_route(monkeypatch, capsys):
+    from huggingface_hub import constants
+
+    from navo_engine import download
+
+    routes, waits = [], []
+
+    def fetch():
+        routes.append("http" if constants.HF_HUB_DISABLE_XET else "xet")
+        if len(routes) < 3:
+            raise TimeoutError("The read operation timed out")
+        return "/snapshot"
+
+    result, error = download.fetch_with_retries(fetch, lambda: 0, lambda _: None, sleep=waits.append,
+                                                poll=0.01, use_xet=True)
+    assert (result, error) == ("/snapshot", None)
+    assert routes == ["xet", "http", "xet"]
+    assert waits == [10, 20]
+    out = capsys.readouterr().out
+    assert "Trying again in 10 s through plain HTTP, try 2 of 6" in out
+    assert "the files that finished are kept" in out
+
+
+def test_access_errors_are_not_tried_again():
+    from huggingface_hub.errors import GatedRepoError
+
+    from navo_engine import download
+
+    calls = []
+
+    def fetch():
+        calls.append(1)
+        raise http_error(GatedRepoError, 403)
+
+    result, error = download.fetch_with_retries(fetch, lambda: 0, lambda _: None, sleep=lambda _: None,
+                                                poll=0.01, use_xet=True)
+    assert result is None and download.is_access_error(error) and len(calls) == 1
+
+
+def test_it_gives_up_after_the_last_try():
+    from navo_engine import download
+
+    calls = []
+
+    def fetch():
+        calls.append(1)
+        raise ConnectionError("no network")
+
+    result, error = download.fetch_with_retries(fetch, lambda: 0, lambda _: None, attempts=3,
+                                                sleep=lambda _: None, poll=0.01, use_xet=False)
+    assert result is None and isinstance(error, ConnectionError) and len(calls) == 3
+
+
+def test_a_stuck_download_is_stopped():
+    import threading
+
+    from navo_engine import download
+
+    never = threading.Event()
+    result, error = download.fetch_with_retries(lambda: never.wait(5), lambda: 123, lambda _: None,
+                                                stall_seconds=0.2, sleep=lambda _: None, poll=0.05, use_xet=True)
+    never.set()
+    assert result is None and isinstance(error, TimeoutError) and "no data" in str(error)
+
+
+def test_downloads_use_their_own_folder_and_wait_longer():
+    from navo_engine import download  # noqa: F401  (sets the environment on import)
+    import os
+
+    assert os.environ["HF_HUB_DISABLE_SHARED_BLOBS"] == "1"
+    assert int(os.environ["HF_HUB_DOWNLOAD_TIMEOUT"]) >= 60

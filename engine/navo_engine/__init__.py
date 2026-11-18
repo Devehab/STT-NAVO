@@ -11,7 +11,7 @@ A small localhost server that runs, on this Mac only:
 It exposes OpenAI-compatible endpoints.
 """
 
-__version__ = "0.12.0"
+__version__ = "0.12.1"
 
 DEFAULT_ASR_MODEL = "CohereLabs/cohere-transcribe-arabic-07-2026"
 DEFAULT_LLM_MODEL = "mlx-community/Qwen3-4B-Instruct-2507-4bit"
